@@ -19,6 +19,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(replanners_lib REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(graph_display graph_display IMPORTED_TARGET)
+
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   graph_display
@@ -44,7 +47,13 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/replanners_managers_lib.cpp
-# )
+add_library(${PROJECT_NAME} SHARED
+            src/replanners_managers/replanner_manager_base.cpp
+            # src/replanners_managers/replanner_manager_DRRTStar.cpp
+            # src/replanners_managers/replanner_manager_DRRT.cpp
+            # src/replanners_managers/replanner_manager_MARS.cpp
+            # src/replanners_managers/replanner_manager_anytimeDRRT.cpp
+            # src/replanners_managers/replanner_manager_MPRRT.cpp
+             )
+add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} replanners_lib::replanners_lib)
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} replanners_lib::replanners_lib)

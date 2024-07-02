@@ -1,43 +1,29 @@
-#ifndef REPLANNER_MANAGER_BASE_H__
-#define REPLANNER_MANAGER_BASE_H__
+#pragma once
 
-#include <mutex>
-#include <thread>
-#include <std_msgs/Int64.h>
-#include <condition_variable>
-#include <std_msgs/ColorRGBA.h>
-#include <boost/filesystem.hpp>
-#include <jsk_rviz_plugins/OverlayText.h>
-#include <openmore/replanners_managers/trajectory.h>
-#include <cnr_scene_manager_msgs/AddObjects.h>
-#include <object_loader_msgs/MoveObjects.h>
-#include <cnr_scene_manager_msgs/RemoveObjects.h>
-#include <openmore/replanners/replanner_base.h>
-#include <moveit_planning_helper/spline_interpolator.h>
-#include <subscription_notifier/subscription_notifier.h>
-#include <graph_core/parallel_moveit_collision_checker.h>
+#include <openmore/replanners_managers/utils.h>
 
-namespace pathplan
+namespace openmore
 {
 class ReplannerManagerBase;
 typedef std::shared_ptr<ReplannerManagerBase> ReplannerManagerBasePtr;
 
 class ReplannerManagerBase: public std::enable_shared_from_this<ReplannerManagerBase>
 {
-
 #define K_OFFSET 1.1
 
 protected:
 
   /* To be assigned by the constructor */
-  double               trj_exec_thread_frequency_         ;
-  double               collision_checker_thread_frequency_;
-  double               dt_replan_                         ;
-  PathPtr              current_path_                      ;
-  PathPtr              current_path_shared_               ;
-  std::string          group_name_                        ;
-  TreeSolverPtr        solver_                            ;
-  ros::NodeHandle      nh_                                ;
+  unsigned int   trj_exec_thread_frequency_         ;
+  unsigned int   collision_checker_thread_frequency_;
+  double         dt_replan_                         ;
+  PathPtr        current_path_                      ;
+  PathPtr        current_path_shared_               ;
+  std::string    group_name_                        ;
+  TrajectoryPtr  trajectory_processor_              ;
+  TreeSolverPtr  solver_                            ;
+  std::string    param_ns_                          ;
+  TraceLoggerPtr logger_                            ;
 
   /* Global variables */
   bool stop_                      ;
@@ -56,9 +42,9 @@ protected:
   bool display_current_trj_point_ ;
   bool display_replanning_success_;
 
-  int spline_order_              ;
-  int parallel_checker_n_threads_;
-  int direction_change_          ;
+  unsigned int replanning_thread_frequency_;
+  unsigned int parallel_checker_n_threads_ ;
+  unsigned int direction_change_           ;
 
   double t_                          ;
   double dt_                         ;
@@ -67,7 +53,6 @@ protected:
   double time_shift_                 ;
   double t_replan_                   ;
   double replanning_time_            ;
-  double replanning_thread_frequency_;
   double scaling_from_param_         ;
   double checker_resolution_         ;
   double goal_tol_                   ;
@@ -76,26 +61,25 @@ protected:
   double obj_vel_                    ;
   double dt_move_                    ;
 
+  ros::NodeHandle nh_   ;
   ros::WallTime tic_trj_;
 
-  ReplannerBasePtr                          replanner_                   ;
-  Eigen::VectorXd                           current_configuration_       ;
-  Eigen::VectorXd                           configuration_replan_        ;
-  CollisionCheckerPtr                       checker_cc_                  ;
-  CollisionCheckerPtr                       checker_replanning_          ;
-  TrajectoryPtr                             trajectory_                  ;
-  NodePtr                                   path_start_                  ;
-  planning_scene::PlanningScenePtr          planning_scn_cc_             ;
-  planning_scene::PlanningScenePtr          planning_scn_replanning_     ;
-  trajectory_processing::SplineInterpolator interpolator_                ;
-  trajectory_msgs::JointTrajectoryPoint     pnt_                         ;
-  trajectory_msgs::JointTrajectoryPoint     pnt_unscaled_                ;
-  trajectory_msgs::JointTrajectoryPoint     pnt_replan_                  ;
-  sensor_msgs::JointState                   new_joint_state_unscaled_    ;
-  sensor_msgs::JointState                   new_joint_state_             ;
-  moveit_msgs::PlanningScene                planning_scene_msg_          ;
-  moveit_msgs::PlanningScene                planning_scene_diff_msg_     ;
-  moveit_msgs::PlanningScene                planning_scene_msg_benchmark_;
+  TrjPoint                         pnt_                         ;
+  TrjPoint                         pnt_unscaled_                ;
+  TrjPoint                         pnt_replan_                  ;
+  ReplannerBasePtr                 replanner_                   ;
+  Eigen::VectorXd                  current_configuration_       ;
+  Eigen::VectorXd                  configuration_replan_        ;
+  MoveitCollisionCheckerPtr        checker_cc_                  ;
+  MoveitCollisionCheckerPtr        checker_replanning_          ;
+  NodePtr                          path_start_                  ;
+  planning_scene::PlanningScenePtr planning_scn_cc_             ;
+  planning_scene::PlanningScenePtr planning_scn_replanning_     ;
+  sensor_msgs::JointState          new_joint_state_unscaled_    ;
+  sensor_msgs::JointState          new_joint_state_             ;
+  moveit_msgs::PlanningScene       planning_scene_msg_          ;
+  moveit_msgs::PlanningScene       planning_scene_diff_msg_     ;
+  moveit_msgs::PlanningScene       planning_scene_msg_benchmark_;
 
   std::string obj_type_                ;
   std::vector<double> spawn_instants_  ;
@@ -141,7 +125,6 @@ protected:
   virtual void fromParam();
   virtual void downloadPathCost();
   virtual void updateSharedPath();
-  virtual bool updateTrajectory();
   virtual bool uploadPathCost(const PathPtr& current_path_updated_copy);
   virtual void attributeInitialization();
   virtual void replanningThread();
@@ -152,8 +135,8 @@ protected:
   virtual void trajectoryExecutionThread();
   virtual double readScalingTopics();
   virtual PathPtr trjPath(const PathPtr& path);
-  Eigen::Vector3d forwardIk(const Eigen::VectorXd& conf, const std::string& last_link, const MoveitUtils& util);
-  Eigen::Vector3d forwardIk(const Eigen::VectorXd& conf, const std::string& last_link, const MoveitUtils& util, geometry_msgs::Pose &pose);
+  Eigen::Vector3d forwardIk(const Eigen::VectorXd& conf, const std::string& last_link, const planning_scene::PlanningScenePtr& planning_scene);
+  Eigen::Vector3d forwardIk(const Eigen::VectorXd& conf, const std::string& last_link, const planning_scene::PlanningScenePtr& planning_scene, geometry_msgs::Pose &pose);
 
   virtual void initReplanner()=0;
   virtual bool haveToReplan(const bool path_obstructed)=0;
@@ -174,8 +157,10 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   ReplannerManagerBase(const PathPtr &current_path,
+                       const TrajectoryPtr& trajectory_processor,
                        const TreeSolverPtr &solver,
-                       const ros::NodeHandle &nh);
+                       const std::string &param_ns,
+                       const TraceLoggerPtr& logger);
   ~ReplannerManagerBase();
 
   void setGroupName(const std::string& group_name)
@@ -188,19 +173,19 @@ public:
     goal_tol_ = toll;
   }
 
-  trajectory_msgs::JointTrajectoryPoint getJointTarget()
+  TrjPoint getJointTarget()
   {
     trj_mtx_.lock();
-    trajectory_msgs::JointTrajectoryPoint pnt = pnt_;
+    TrjPoint pnt = pnt_;
     trj_mtx_.unlock();
 
     return pnt;
   }
 
-  trajectory_msgs::JointTrajectoryPoint getUnscaledJointTarget()
+  TrjPoint getUnscaledJointTarget()
   {
     trj_mtx_.lock();
-    trajectory_msgs::JointTrajectoryPoint pnt_unscaled = pnt_unscaled_;
+    TrjPoint pnt_unscaled = pnt_unscaled_;
     trj_mtx_.unlock();
 
     return pnt_unscaled;
@@ -235,5 +220,3 @@ public:
 };
 
 }
-
-#endif // REPLANNER_MANAGER_BASE_H__

@@ -19,22 +19,21 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(replanners_lib REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(graph_display graph_display IMPORTED_TARGET)
+find_package(trajectories_processors_lib REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   graph_display
   cnr_scene_manager_msgs
   moveit_collision_checker
-)
+  )
 
 catkin_package(
- INCLUDE_DIRS include
- LIBRARIES ${PROJECT_NAME}
- CATKIN_DEPENDS roscpp graph_display moveit_collision_checker cnr_scene_manager_msgs
- DEPENDS replanners_lib
-)
+  INCLUDE_DIRS include
+  LIBRARIES ${PROJECT_NAME}
+  CATKIN_DEPENDS roscpp graph_display moveit_collision_checker cnr_scene_manager_msgs
+  DEPENDS replanners_lib trajectories_processors_lib
+  )
 
 ###########
 ## Build ##
@@ -45,15 +44,15 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
-)
+  )
 
 add_library(${PROJECT_NAME} SHARED
-            src/replanners_managers/replanner_manager_base.cpp
-            # src/replanners_managers/replanner_manager_DRRTStar.cpp
-            # src/replanners_managers/replanner_manager_DRRT.cpp
-            # src/replanners_managers/replanner_manager_MARS.cpp
-            # src/replanners_managers/replanner_manager_anytimeDRRT.cpp
-            # src/replanners_managers/replanner_manager_MPRRT.cpp
-             )
+  src/replanners_managers/replanner_manager_base.cpp
+  src/replanners_managers/replanner_manager_DRRT.cpp
+  # src/replanners_managers/replanner_manager_DRRTStar.cpp
+  # src/replanners_managers/replanner_manager_MARS.cpp
+  # src/replanners_managers/replanner_manager_anytimeDRRT.cpp
+  # src/replanners_managers/replanner_manager_MPRRT.cpp
+  )
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} replanners_lib::replanners_lib)
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} replanners_lib::replanners_lib)
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} replanners_lib::replanners_lib trajectories_processors_lib::trajectories_processors_lib)

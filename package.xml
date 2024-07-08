@@ -18,10 +18,10 @@
   <depend>graph_display</depend>
   <depend>cnr_scene_manager_msgs</depend>
   <depend>moveit_collision_checker</depend>
+  <depend>subscription_notifier</depend>
 
   <depend>replanners_lib</depend>
   <depend>trajectories_processors_lib</depend>
-
 
   <export>
     <build_type condition="$ROS_VERSION == 1">catkin</build_type>

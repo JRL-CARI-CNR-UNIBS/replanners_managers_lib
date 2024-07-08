@@ -64,9 +64,9 @@ protected:
   ros::NodeHandle nh_   ;
   ros::WallTime tic_trj_;
 
-  TrjPoint                         pnt_                         ;
-  TrjPoint                         pnt_unscaled_                ;
-  TrjPoint                         pnt_replan_                  ;
+  TrjPointPtr                      pnt_                         ;
+  TrjPointPtr                      pnt_unscaled_                ;
+  TrjPointPtr                      pnt_replan_                  ;
   ReplannerBasePtr                 replanner_                   ;
   Eigen::VectorXd                  current_configuration_       ;
   Eigen::VectorXd                  configuration_replan_        ;
@@ -175,8 +175,10 @@ public:
 
   TrjPoint getJointTarget()
   {
+    TrjPoint pnt;
     trj_mtx_.lock();
-    TrjPoint pnt = pnt_;
+    *pnt.state_ = *pnt_->state_;
+    pnt.time_from_start_ = pnt_->time_from_start_;
     trj_mtx_.unlock();
 
     return pnt;
@@ -184,8 +186,10 @@ public:
 
   TrjPoint getUnscaledJointTarget()
   {
+    TrjPoint pnt_unscaled;
     trj_mtx_.lock();
-    TrjPoint pnt_unscaled = pnt_unscaled_;
+    *pnt_unscaled.state_ = *pnt_unscaled_->state_;
+    pnt_unscaled.time_from_start_ = pnt_unscaled_->time_from_start_;
     trj_mtx_.unlock();
 
     return pnt_unscaled;

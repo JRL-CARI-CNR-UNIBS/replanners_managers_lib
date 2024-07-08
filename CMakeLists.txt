@@ -54,5 +54,17 @@ add_library(${PROJECT_NAME} SHARED
   # src/replanners_managers/replanner_manager_anytimeDRRT.cpp
   # src/replanners_managers/replanner_manager_MPRRT.cpp
   )
-add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} replanners_lib::replanners_lib)
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} replanners_lib::replanners_lib trajectories_processors_lib::trajectories_processors_lib)
+add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} )
+target_link_libraries(${PROJECT_NAME} PUBLIC replanners_lib::replanners_lib trajectories_processors_lib::trajectories_processors_lib )
+target_link_libraries(${PROJECT_NAME} PUBLIC ${catkin_LIBRARIES} )
+
+# Install
+install(DIRECTORY include/openmore
+  DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}/)
+
+install(
+  TARGETS ${PROJECT_NAME}
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+  )

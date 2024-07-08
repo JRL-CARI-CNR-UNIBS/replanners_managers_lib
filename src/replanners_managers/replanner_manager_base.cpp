@@ -110,8 +110,8 @@ void ReplannerManagerBase::attributeInitialization()
   planning_scene_diff_msg_.is_diff = true;
   planning_scene_diff_msg_.world   = ps_srv.response.scene.world;
 
-  RobotState::RobotState state(planning_scn_cc_->getCurrentState());
-  const RobotState::JointModelGroup* joint_model_group = state.getJointModelGroup(group_name_);
+  robot_state::RobotState state(planning_scn_cc_->getCurrentState());
+  const robot_state::JointModelGroup* joint_model_group = state.getJointModelGroup(group_name_);
   std::vector<std::string> joint_names = joint_model_group->getActiveJointModelNames();
 
   current_path_shared_ = current_path_->clone();
@@ -132,8 +132,8 @@ void ReplannerManagerBase::attributeInitialization()
   trajectory_processor_->interpolate(t_       ,pnt_unscaled_,scaling_from_param_);
 
   Eigen::VectorXd point2project(joint_names.size());
-  for(size_t i=0; i<pnt_replan_.state_.pos_.size();i++)
-    point2project(i) = pnt_replan_.state_.pos_[i];
+  for(size_t i=0; i<pnt_replan_->state_->pos_.size();i++)
+    point2project(i) = pnt_replan_->state_->pos_[i];
 
   configuration_replan_  = current_path_shared_->projectOnPath(point2project);
   current_configuration_ = current_path_shared_->getStartNode()->getConfiguration();
@@ -143,13 +143,13 @@ void ReplannerManagerBase::attributeInitialization()
 
   obj_ids_.clear();
 
-  new_joint_state_.position                 = pnt_.state_.pos_                ;
-  new_joint_state_.velocity                 = pnt_.state_.vel_                ;
+  new_joint_state_.position                 = pnt_->state_->pos_              ;
+  new_joint_state_.velocity                 = pnt_->state_->vel_              ;
   new_joint_state_.name                     = joint_names                     ;
   new_joint_state_.header.frame_id          = kinematic_model->getModelFrame();
   new_joint_state_.header.stamp             = ros::Time::now()                ;
-  new_joint_state_unscaled_.position        = pnt_unscaled_.state_.pos_       ;
-  new_joint_state_unscaled_.velocity        = pnt_unscaled_.state_.vel_       ;
+  new_joint_state_unscaled_.position        = pnt_unscaled_->state_->pos_     ;
+  new_joint_state_unscaled_.velocity        = pnt_unscaled_->state_->vel_     ;
   new_joint_state_unscaled_.name            = joint_names                     ;
   new_joint_state_unscaled_.header.frame_id = kinematic_model->getModelFrame();
   new_joint_state_unscaled_.header.stamp    = ros::Time::now()                ;
@@ -299,7 +299,7 @@ void ReplannerManagerBase::replanningThread()
 
   PathPtr path2project_on;
   Eigen::VectorXd current_configuration;
-  Eigen::VectorXd point2project(pnt_replan_.state_.pos_.size());
+  Eigen::VectorXd point2project(pnt_replan_->state_->pos_.size());
 
   size_t n_size_before;
   bool success = false;
@@ -325,8 +325,8 @@ void ReplannerManagerBase::replanningThread()
     trj_mtx_.lock();
     trajectory_processor_->interpolate(t_replan_,pnt_replan_,scaling_);
 
-    for(size_t i=0; i<pnt_replan_.state_.pos_.size();i++)
-      point2project(i) = pnt_replan_.state_.pos_[i];
+    for(size_t i=0; i<pnt_replan_->state_->pos_.size();i++)
+      point2project(i) = pnt_replan_->state_->pos_[i];
 
     current_configuration = current_configuration_;
     trj_mtx_.unlock();
@@ -608,7 +608,7 @@ void ReplannerManagerBase::trajectoryExecutionThread()
   double  duration;
   ros::WallTime tic,toc;
   PathPtr path2project_on;
-  Eigen::VectorXd point2project(pnt_.state_.pos_.size());
+  Eigen::VectorXd point2project(pnt_->state_->pos_.size());
   Eigen::VectorXd goal_conf = replanner_->getGoal()->getConfiguration();
 
   ros::WallRate lp(trj_exec_thread_frequency_);
@@ -631,8 +631,8 @@ void ReplannerManagerBase::trajectoryExecutionThread()
     trajectory_processor_->interpolate(t_,pnt_         ,scaling_           );
     trajectory_processor_->interpolate(t_,pnt_unscaled_,scaling_from_param_);
 
-    for(size_t i=0; i<pnt_.state_.pos_.size();i++)
-      point2project[i] = pnt_.state_.pos_[i];
+    for(size_t i=0; i<pnt_->state_->pos_.size();i++)
+      point2project[i] = pnt_->state_->pos_[i];
 
     paths_mtx_.lock();
     path2project_on = current_path_shared_->clone();
@@ -651,13 +651,13 @@ void ReplannerManagerBase::trajectoryExecutionThread()
       goal_reached_ = true;
     }
 
-    new_joint_state_.position              = pnt_.state_.pos_;
-    new_joint_state_.velocity              = pnt_.state_.vel_;
+    new_joint_state_.position              = pnt_->state_->pos_;
+    new_joint_state_.velocity              = pnt_->state_->vel_;
     new_joint_state_.header.stamp          = ros::Time::now();
 
-    new_joint_state_unscaled_.position     = pnt_unscaled_.state_.pos_;
-    new_joint_state_unscaled_.velocity     = pnt_unscaled_.state_.vel_;
-    new_joint_state_unscaled_.header.stamp = ros::Time::now()         ;
+    new_joint_state_unscaled_.position     = pnt_unscaled_->state_->pos_;
+    new_joint_state_unscaled_.velocity     = pnt_unscaled_->state_->vel_;
+    new_joint_state_unscaled_.header.stamp = ros::Time::now();
 
     target_pub_         .publish(new_joint_state_)         ;
     unscaled_target_pub_.publish(new_joint_state_unscaled_);
@@ -672,8 +672,8 @@ void ReplannerManagerBase::trajectoryExecutionThread()
 
   stop_ = true;
 
-  for(size_t i=0; i<pnt_.state_.pos_.size();i++)
-    point2project(i) = pnt_.state_.pos_[i];
+  for(size_t i=0; i<pnt_->state_->pos_.size();i++)
+    point2project(i) = pnt_->state_->pos_[i];
 
   if(goal_reached_ && (point2project-goal_conf).norm()>goal_tol_)
     throw std::runtime_error("goal toll not respected! goal toll "+std::to_string(goal_tol_)+" dist "+std::to_string((point2project-goal_conf).norm()));
@@ -692,7 +692,7 @@ void ReplannerManagerBase::displayThread()
   TrjPoint pnt, pnt_replan;
   Eigen::VectorXd current_configuration, configuration_replan;
 
-  Eigen::VectorXd point2project(pnt_.state_.pos_.size());
+  Eigen::VectorXd point2project(pnt_->state_->pos_.size());
 
   int path_id,node_id,wp_id;
   std::vector<double> marker_scale(3,0.01);
@@ -717,8 +717,12 @@ void ReplannerManagerBase::displayThread()
 
     replanner_mtx_.lock();
     trj_mtx_.lock();
-    pnt        = pnt_       ;
-    pnt_replan = pnt_replan_;
+    *pnt.state_ = *(pnt_->state_);
+    pnt.time_from_start_ = pnt_->time_from_start_;
+
+    *pnt_replan.state_ = *(pnt_replan_->state_);
+    pnt_replan.time_from_start_ = pnt_replan_->time_from_start_;
+
     configuration_replan  = configuration_replan_ ;
     current_configuration = current_configuration_;
     trj_mtx_.unlock();
@@ -741,8 +745,8 @@ void ReplannerManagerBase::displayThread()
 
     if(display_current_trj_point_)
     {
-      for(size_t i=0; i<pnt.state_.pos_.size();i++)
-        point2project[i] = pnt.state_.pos_[i];
+      for(size_t i=0; i<pnt.state_->pos_.size();i++)
+        point2project[i] = pnt.state_->pos_[i];
 
       node_id +=1;
       disp->displayNode(std::make_shared<Node>(point2project),node_id,"graph_display",marker_color_current_pnt);
@@ -756,8 +760,8 @@ void ReplannerManagerBase::displayThread()
 
     if(display_replan_trj_point_)
     {
-      for(size_t i=0; i<pnt_replan.state_.pos_.size();i++)
-        point2project[i] = pnt_replan.state_.pos_[i];
+      for(size_t i=0; i<pnt_replan.state_->pos_.size();i++)
+        point2project[i] = pnt_replan.state_->pos_[i];
 
       node_id +=1;
       disp->displayNode(std::make_shared<Node>(point2project),node_id,"graph_display",marker_color_replan_pnt);
@@ -791,13 +795,12 @@ void ReplannerManagerBase::spawnObjectsThread()
 
   std::vector<std::string> ids;
   std::vector<double> moving_time;
-  std::vector<int> n_move;
+  std::vector<unsigned int> n_move;
   std::vector<Eigen::Vector3d> velocities;
   std::vector<Eigen::Vector3d> objects_locations;
   std::vector<cnr_scene_manager_msgs::Object> spawned_objects;
 
   bool obs_update;
-
   geometry_msgs::Quaternion q;
   q.x = 0.0; q.y = 0.0; q.z = 0.0; q.w = 1.0;
 
@@ -1067,7 +1070,7 @@ void ReplannerManagerBase::benchmarkThread()
 
     trj_mtx_.lock();
     paths_mtx_.lock();
-    pnt = pnt_;
+    *pnt.state_ = *(pnt_->state_);
     current_path = current_path_shared_->clone();
     current_configuration = current_configuration_;
     paths_mtx_.unlock();
@@ -1075,8 +1078,8 @@ void ReplannerManagerBase::benchmarkThread()
 
     current_configuration_3d = forwardIk(current_configuration,last_link,planning_scene);
 
-    for(size_t i=0; i<pnt.state_.pos_.size();i++)
-      pnt_conf(i) = pnt.state_.pos_[i];
+    for(size_t i=0; i<pnt.state_->pos_.size();i++)
+      pnt_conf(i) = pnt.state_->pos_[i];
 
     /* Replanning time */
     bench_mtx_.lock();
@@ -1254,22 +1257,22 @@ Eigen::Vector3d ReplannerManagerBase::forwardIk(const Eigen::VectorXd& conf, con
 
 void ReplannerManagerBase::displayTrj(const DisplayPtr& disp)
 {
-  TrajectoryPtr interpolator = trajectory_processor_->clone();
+  TrajectoryPtr interpolator = trajectory_processor_;
 
   double t=0;
   double t_max = interpolator->getTrjDuration();
 
   NodePtr node;
-  TrjPoint pnt;
+  TrjPointPtr pnt;
   std::vector<NodePtr> nodes;
 
   while(t<t_max)
   {
     interpolator->interpolate(t,pnt,scaling_);
 
-    Eigen::VectorXd conf(pnt.state_.pos_.size());
-    for(size_t i=0; i<pnt.state_.pos_.size();i++)
-      conf(i) = pnt.state_.pos_[i];
+    Eigen::VectorXd conf(pnt->state_->pos_.size());
+    for(size_t i=0; i<pnt->state_->pos_.size();i++)
+      conf(i) = pnt->state_->pos_[i];
 
     node = std::make_shared<Node>(conf,logger_);
     nodes.push_back(node);

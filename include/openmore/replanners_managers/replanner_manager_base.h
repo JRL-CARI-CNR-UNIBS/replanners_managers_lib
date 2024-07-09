@@ -134,7 +134,6 @@ protected:
   virtual void spawnObjectsThread();
   virtual void trajectoryExecutionThread();
   virtual double readScalingTopics();
-  virtual PathPtr trjPath(const PathPtr& path);
   Eigen::Vector3d forwardIk(const Eigen::VectorXd& conf, const std::string& last_link, const planning_scene::PlanningScenePtr& planning_scene);
   Eigen::Vector3d forwardIk(const Eigen::VectorXd& conf, const std::string& last_link, const planning_scene::PlanningScenePtr& planning_scene, geometry_msgs::Pose &pose);
 

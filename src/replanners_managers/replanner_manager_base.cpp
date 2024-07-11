@@ -444,6 +444,7 @@ void ReplannerManagerBase::replanningThread()
         trj_mtx_.unlock();
 
         trj_path = replanner_->getReplannedPath()->clone();
+        trj_path->removeNodes(solver_->getMaxDistance()/100.0);
         trj_path->resample(solver_->getMaxDistance()/10.0); //add more nodes to ensure better tracking
 
         replanner_mtx_.lock();

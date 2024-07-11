@@ -1,18 +1,24 @@
-﻿#include "replanners_lib/replanner_managers/replanner_manager_MARS.h"
+﻿#include "openmore/replanners_managers/replanner_manager_MARS.h"
 
-namespace pathplan
+namespace openmore
 {
 ReplannerManagerMARS::ReplannerManagerMARS(const PathPtr &current_path,
+                                           const TrajectoryPtr& trajectory_processor,
                                            const TreeSolverPtr &solver,
-                                           const ros::NodeHandle &nh):ReplannerManagerBase(current_path,solver,nh)
+                                           const std::string &param_ns,
+                                           const TraceLoggerPtr& logger):
+  ReplannerManagerBase(current_path,trajectory_processor,solver,param_ns,logger)
 {
   ReplannerManagerMARS::MARSadditionalParams();
 }
 
 ReplannerManagerMARS::ReplannerManagerMARS(const PathPtr &current_path,
+                                           const TrajectoryPtr& trajectory_processor,
                                            const TreeSolverPtr &solver,
-                                           const ros::NodeHandle &nh,
-                                           std::vector<PathPtr> &other_paths):ReplannerManagerMARS(current_path,solver,nh)
+                                           const std::string &param_ns,
+                                           const TraceLoggerPtr& logger,
+                                           const std::vector<PathPtr> &other_paths):
+  ReplannerManagerMARS(current_path,trajectory_processor,solver,param_ns,logger)
 {
   other_paths_ = other_paths;
   if(replanner_)
@@ -24,36 +30,10 @@ ReplannerManagerMARS::ReplannerManagerMARS(const PathPtr &current_path,
 
 void ReplannerManagerMARS::MARSadditionalParams()
 {
-  if(!nh_.getParam("MARS/dt_replan_relaxed",dt_replan_relaxed_))
-  {
-    ROS_ERROR("MARS/dt_replan_relaxed not set, set 150% of dt_replan");
-    dt_replan_relaxed_ = 1.5*dt_replan_;
-  }
-
-  if(!nh_.getParam("MARS/reverse_start_nodes",reverse_start_nodes_))
-  {
-    ROS_ERROR("MARS/reverse_start_nodes not set, set false");
-    reverse_start_nodes_ = false;
-  }
-
-  if(!nh_.getParam("MARS/full_net_search",full_net_search_))
-  {
-    ROS_ERROR("MARS/full_net_search_ not set, set true");
-    full_net_search_ = true;
-  }
-
-  if(!nh_.getParam("MARS/verbosity_level",verbosity_level_))
-  {
-    ROS_ERROR("MARS/verbosity_level not set, set 0");
-    verbosity_level_ = 0;
-  }
-
-  if(!nh_.getParam("MARS/display_other_paths",display_other_paths_))
-  {
-    ROS_ERROR("MARS/display_other_paths_ not set, set true");
-    display_other_paths_ = true;
-  }
-
+  get_param(logger_,param_ns_,"MARS/reverse_start_nodes",reverse_start_nodes_,false);
+  get_param(logger_,param_ns_,"MARS/full_net_search",full_net_search_,true);
+  get_param(logger_,param_ns_,"MARS/verbosity_level",verbosity_level_,0);
+  get_param(logger_,param_ns_,"MARS/display_other_paths",display_other_paths_,true);
 }
 
 void ReplannerManagerMARS::attributeInitialization()
@@ -103,28 +83,10 @@ void ReplannerManagerMARS::attributeInitialization()
 
     other_paths_sync_needed_.push_back(false);
   }
-
-  time_shift_ = (dt_replan_relaxed_-dt_)*K_OFFSET;
-  t_replan_ = t_+time_shift_;
-
-  double scaling = 1.0;
-  read_safe_scaling_? (scaling = readScalingTopics()):
-                      (scaling = scaling_from_param_);
-
-  interpolator_.interpolate(ros::Duration(t_replan_),pnt_replan_,scaling);
-
-  Eigen::VectorXd point2project(pnt_replan_.positions.size());
-  for(unsigned int i=0; i<pnt_replan_.positions.size();i++)
-    point2project(i) = pnt_replan_.positions.at(i);
-
-  configuration_replan_ = current_path_shared_->projectOnPath(point2project);
 }
 
 bool ReplannerManagerMARS::replan()
 {
-  double cost = replanner_->getCurrentPath()->getCostFromConf(replanner_->getCurrentConf());
-  (cost == std::numeric_limits<double>::infinity())? (replanner_->setMaxTime(0.9*dt_replan_)):
-                                                     (replanner_->setMaxTime(0.9*dt_replan_relaxed_));
   bool path_changed = replanner_->replan();
 
   //CHANGE WITH PATH_CHANGED?
@@ -183,13 +145,12 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
                  else
                  {
                    for(const ConnectionPtr c:old_current_node_->getParentConnections())
-                   ROS_INFO_STREAM("parent conn"<<*c);
+                   CNR_INFO(logger_,"parent conn"<<*c);
 
                    for(const ConnectionPtr c:old_current_node_->getNetParentConnections())
-                   ROS_INFO_STREAM("net parent conn"<<*c);
-
-                   ROS_INFO_STREAM("current path "<<*current_path);
-                   ROS_INFO_STREAM("old current node "<<*old_current_node_<<old_current_node_);
+                   CNR_INFO(logger_,"net parent conn"<<*c);
+                   CNR_INFO(logger_,"current path "<<*current_path);
+                   CNR_INFO(logger_,"old current node "<<*old_current_node_<<old_current_node_);
 
                    return false;
                  }
@@ -228,7 +189,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     }
   }
 
-  int conn_idx;
+  size_t conn_idx;
   bool is_a_new_node;
   PathPtr tmp_p = current_path->clone();
   ConnectionPtr conn = current_path->findConnection(configuration,conn_idx);
@@ -237,15 +198,14 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
   assert([&]() ->bool{
            if((current_node == node_replan && ((configuration-node_replan->getConfiguration()).norm()>TOLERANCE)) || (current_node != node_replan && ((configuration-node_replan->getConfiguration()).norm()<=TOLERANCE)))
            {
-             ROS_INFO_STREAM("current node: "<<current_node<<" "<<*current_node);
-             ROS_INFO_STREAM("is a new node: "<<is_a_new_node);
-             ROS_INFO_STREAM("replan node: "<<node_replan<<" "<<*node_replan);
-             ROS_INFO_STREAM("conn: "<<*conn);
-             ROS_INFO_STREAM("conf: "<<configuration.transpose());
-             ROS_INFO_STREAM("TOLERANCE: "<<TOLERANCE<<" norm: "<<(configuration-node_replan->getConfiguration()).norm());
-
-             ROS_INFO_STREAM("curr p:"<<*current_path);
-             ROS_INFO_STREAM("tmp p: "<<*tmp_p);
+             CNR_INFO(logger_,"current node: "<<current_node<<" "<<*current_node);
+             CNR_INFO(logger_,"is a new node: "<<is_a_new_node);
+             CNR_INFO(logger_,"replan node: "<<node_replan<<" "<<*node_replan);
+             CNR_INFO(logger_,"conn: "<<*conn);
+             CNR_INFO(logger_,"conf: "<<configuration.transpose());
+             CNR_INFO(logger_,"TOLERANCE: "<<TOLERANCE<<" norm: "<<(configuration-node_replan->getConfiguration()).norm());
+             CNR_INFO(logger_,"curr p:"<<*current_path);
+             CNR_INFO(logger_,"tmp p: "<<*tmp_p);
 
              tmp_p->findConnection(configuration,conn_idx,true);
 
@@ -259,8 +219,8 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     old_current_node_ = current_node;
     for(PathPtr &p:other_paths_)
     {
-      if(p->splitConnection(current_path->getConnectionsConst().at(conn_idx),
-                            current_path->getConnectionsConst().at(conn_idx+1),conn));
+      p->splitConnection(current_path->getConnectionsConst().at(conn_idx),
+                         current_path->getConnectionsConst().at(conn_idx+1),conn);
     }
   }
   else
@@ -285,7 +245,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     }
     else if(distance<0)
     {
-      int idx;
+      size_t idx;
       ConnectionPtr current_conn = replanned_path->findConnection(configuration,idx,true);
       if(current_conn != nullptr) //current node is on replanned path
       {
@@ -295,42 +255,30 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
         }
         else
         {
-          //          assert([&]() ->bool{
-          //                   if(conn == current_conn)
-          //                   return true;
-          //                   else
-          //                   {
-          //                     ROS_INFO_STREAM("current conf "<<configuration);
-          //                     ROS_INFO_STREAM("conn "<<*conn<<"\n"<<conn);
-          //                     ROS_INFO_STREAM("current_conn "<<*current_conn<<"\n"<<current_conn);
-          //                     return false;
-          //                   }
-          //                 }());
           if(conn != current_conn)
           {
-            ROS_INFO_STREAM("conf "<<configuration.transpose());
+            CNR_INFO(logger_,"conf "<<configuration.transpose());
+            CNR_INFO(logger_,"conn "<<*conn<<"\n"<<conn);
+            CNR_INFO(logger_,"current_conn "<<*current_conn<<"\n"<<current_conn);
 
-            ROS_INFO_STREAM("conn "<<*conn<<"\n"<<conn);
-            ROS_INFO_STREAM("current_conn "<<*current_conn<<"\n"<<current_conn);
-
-            ROS_BOLDBLUE_STREAM("CURRENT PATH "<<*current_path);
-            ROS_BOLDBLUE_STREAM("REPLANNED PATH "<<*replanned_path);
+            CNR_INFO(logger_,RESET()<<BOLDBLUE()<<"CURRENT PATH "<<*current_path<<RESET());
+            CNR_INFO(logger_,RESET()<<BOLDBLUE()<<"REPLANNED PATH "<<*replanned_path<<RESET());
 
             stop_ = true;
             if(not display_thread_.joinable())
               display_thread_.join();
 
 
-            pathplan::DisplayPtr disp = std::make_shared<pathplan::Display>(planning_scn_cc_,group_name_);
+            DisplayPtr disp = std::make_shared<Display>(planning_scn_cc_,group_name_);
             disp->clearMarkers();
 
             ros::Duration(1).sleep();
 
-            disp->displayConnection(conn,"pathplan",{1,0,0,1});
+            disp->displayConnection(conn,"graph_display",{1,0,0,1});
 
-            disp->displayConnection(current_conn,"pathplan",{0,0,1,1});
+            disp->displayConnection(current_conn,"graph_display",{0,0,1,1});
 
-            disp->displayNode(std::make_shared<Node>(configuration),"pathplan",{1,0,0,0.5});
+            disp->displayNode(std::make_shared<Node>(configuration),"graph_display",{1,0,0,0.5});
 
             ros::Duration(1).sleep();
 
@@ -340,7 +288,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
           if(not replanned_path->splitConnection(current_path->getConnectionsConst().at(conn_idx),
                                                  current_path->getConnectionsConst().at(conn_idx+1),current_conn))
-            ROS_BOLDRED_STREAM("CONNECTION NOT SPLITTED");
+            CNR_INFO(logger_,RESET()<<BOLDBLUE()<<"CONNECTION NOT SPLITTED"<<RESET());
 
           replanned_path->setConnections(replanned_path->getSubpathFromNode(current_node)->getConnections());
         }
@@ -354,7 +302,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
         ConnectionPtr first_conn = replanned_path_conns.front();
         NodePtr child = first_conn->getChild();
 
-        ConnectionPtr new_conn = std::make_shared<Connection>(current_node,child,first_conn->isNet());
+        ConnectionPtr new_conn = std::make_shared<Connection>(current_node,child,logger_,first_conn->isNet());
         (first_conn->getCost()<std::numeric_limits<double>::infinity())?
               new_conn->setCost(replanned_path->getMetrics()->cost(current_node->getConfiguration(),child->getConfiguration())):
               new_conn->setCost(std::numeric_limits<double>::infinity());
@@ -379,11 +327,10 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
       }
       catch(...)
       {
-        ROS_INFO_STREAM("current path: "<<*current_path); //elimina
-        ROS_INFO_STREAM("tmp subpath: "<<*tmp_subpath); //elimina
-
-        ROS_INFO_STREAM("current node: "<<current_node<<" "<<*current_node);
-        ROS_INFO_STREAM("node_replan : "<<node_replan<<" "<<*node_replan);
+        CNR_INFO(logger_,"current path: "<<*current_path); //elimina
+        CNR_INFO(logger_,"tmp subpath: "<<*tmp_subpath); //elimina
+        CNR_INFO(logger_,"current node: "<<current_node<<" "<<*current_node);
+        CNR_INFO(logger_,"node_replan : "<<node_replan<<" "<<*node_replan);
         throw std::runtime_error("runtime err");
       }
       std::vector<ConnectionPtr> new_conns = tmp_subpath->getConnections();
@@ -396,8 +343,8 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
         std::vector<NodePtr> pn = replanned_path->getNodes();
         if(std::find(pn.begin(),pn.end(),old_current_node_)>=pn.end())
         {
-          ROS_INFO_STREAM("rp "<<*replanned_path);
-          ROS_INFO_STREAM("old cur node "<<*old_current_node_<<old_current_node_);
+          CNR_INFO(logger_,"rp "<<*replanned_path);
+          CNR_INFO(logger_,"old cur node "<<*old_current_node_<<old_current_node_);
 
           throw std::runtime_error("error");
         }
@@ -422,7 +369,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
                    std::vector<NodePtr> p_nodes = p->getNodes();
                    if(std::find(p_nodes.begin(),p_nodes.end(),node_replan)<p_nodes.end())
                    {
-                     ROS_INFO_STREAM("other path: "<<*p);
+                     CNR_INFO(logger_,"other path: "<<*p);
                      return false;
                    }
                    else
@@ -441,9 +388,9 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
                {
                  for(const NodePtr& nn:replanned_path->getNodes())
                  {
-                   ROS_INFO_STREAM(nn<<" "<<*nn);
+                   CNR_INFO(logger_,nn<<" "<<*nn);
                  }
-                 ROS_INFO_STREAM(*replanned_path);
+                 CNR_INFO(logger_,*replanned_path);
 
                  return false;
                }
@@ -535,14 +482,16 @@ void ReplannerManagerMARS::downloadPathCost()
 void ReplannerManagerMARS::initReplanner()
 {
   double time_for_repl = 0.9*dt_replan_;
-  pathplan::MARSPtr replanner = std::make_shared<pathplan::MARS>(configuration_replan_,current_path_,time_for_repl,solver_,other_paths_);
+  MARSPtr replanner = std::make_shared<MARS>(configuration_replan_,current_path_,time_for_repl,solver_,logger_,other_paths_);
 
   replanner->reverseStartNodes(reverse_start_nodes_);
   replanner->setFullNetSearch(full_net_search_);
   replanner_ = replanner;
 
-  pathplan::DisplayPtr disp = std::make_shared<pathplan::Display>(planning_scn_cc_,group_name_);
+#ifdef GRAPH_DISPLAY_AVAILABLE
+  DisplayPtr disp = std::make_shared<Display>(planning_scn_cc_,group_name_);
   replanner_->setDisp(disp);
+#endif
 }
 
 bool ReplannerManagerMARS::checkPathTask(const PathPtr& path)
@@ -562,18 +511,18 @@ void ReplannerManagerMARS::collisionCheckThread()
   current_path_copy->setChecker(checker_cc_);
 
   std::vector<PathPtr> other_paths_copy;
-  std::vector<CollisionCheckerPtr> checkers;
+  std::vector<MoveitCollisionCheckerPtr> checkers;
   for(const PathPtr& p:other_paths_shared_)
   {
     PathPtr path_copy = p->clone();
-    CollisionCheckerPtr checker = checker_cc_->clone();
+    MoveitCollisionCheckerPtr checker = std::static_pointer_cast<MoveitCollisionChecker>(checker_cc_->clone());
 
     checkers.push_back(checker);
     path_copy->setChecker(checker);
     other_paths_copy.push_back(path_copy);
   }
 
-  int other_path_size = other_paths_copy.size();
+  size_t other_path_size = other_paths_copy.size();
 
   ros::WallRate lp(collision_checker_thread_frequency_);
   ros::WallTime tic;
@@ -589,7 +538,7 @@ void ReplannerManagerMARS::collisionCheckThread()
 
     if(not plannning_scene_client_.call(ps_srv))
     {
-      ROS_ERROR("call to srv not ok");
+      CNR_ERROR(logger_,"call to srv not ok");
       stop_ = true;
       break;
     }
@@ -599,7 +548,7 @@ void ReplannerManagerMARS::collisionCheckThread()
     planning_scene_msg.is_diff = true;
 
     checker_cc_->setPlanningSceneMsg(planning_scene_msg);
-    for(const CollisionCheckerPtr& checker: checkers)
+    for(const MoveitCollisionCheckerPtr& checker: checkers)
       checker->setPlanningSceneMsg(planning_scene_msg);
     scene_mtx_.unlock();
 
@@ -621,7 +570,7 @@ void ReplannerManagerMARS::collisionCheckThread()
     {
       assert(other_path_size == (other_paths_shared_.size()-1));
 
-      CollisionCheckerPtr checker = checker_cc_->clone();
+      MoveitCollisionCheckerPtr checker = std::static_pointer_cast<MoveitCollisionChecker>(checker_cc_->clone());
       PathPtr path_copy = other_paths_shared_.back()->clone();
 
       checkers.push_back(checker);
@@ -662,7 +611,7 @@ void ReplannerManagerMARS::collisionCheckThread()
     }
 
     //current_path_copy->isValidFromConf(current_configuration_copy,checker_cc_);
-    int conn_idx;
+    size_t conn_idx;
     current_path_copy->findConnection(current_configuration_copy,conn_idx);
     if(conn_idx<0)
       continue;
@@ -687,12 +636,12 @@ void ReplannerManagerMARS::collisionCheckThread()
     double duration = (ros::WallTime::now()-tic).toSec();
 
     if(duration>(1.0/collision_checker_thread_frequency_) && display_timing_warning_)
-      ROS_BOLDYELLOW_STREAM("Collision checking thread time expired: total duration-> "<<duration);
+      CNR_INFO(logger_,RESET()<<BOLDYELLOW()<<"Collision checking thread time expired: total duration-> "<<duration<<RESET());
 
     lp.sleep();
   }
 
-  ROS_BOLDCYAN_STREAM("Collision check thread is over");
+  CNR_INFO(logger_,RESET()<<BOLDCYAN()<<"Collision check thread is over"<<RESET());
 }
 
 bool ReplannerManagerMARS::uploadPathsCost(const PathPtr& current_path_updated_copy, const std::vector<PathPtr>& other_paths_updated_copy)
@@ -718,7 +667,7 @@ bool ReplannerManagerMARS::uploadPathsCost(const PathPtr& current_path_updated_c
     updated = false;
 
   if(current_path_shared_->getCostFromConf(current_configuration_) == std::numeric_limits<double>::infinity() && (display_timing_warning_ || display_replanning_success_))
-    ROS_BOLDMAGENTA_STREAM("Obstacle detected!");
+    CNR_INFO(logger_,RESET()<<BOLDMAGENTA()<<"Obstacle detected!"<<RESET());
 
   other_paths_mtx_.lock();
   for(unsigned int i=0;i<other_paths_updated_copy.size();i++)
@@ -753,8 +702,8 @@ void ReplannerManagerMARS::displayCurrentPath()
 }
 
 void ReplannerManagerMARS::displayOtherPaths()
-{ 
-  pathplan::DisplayPtr disp = std::make_shared<pathplan::Display>(planning_scn_cc_,group_name_);
+{
+  DisplayPtr disp = std::make_shared<Display>(planning_scn_cc_,group_name_);
   disp->clearMarkers();
 
   int path_id,wp_id;
@@ -781,7 +730,7 @@ void ReplannerManagerMARS::displayOtherPaths()
 
     for(const PathPtr& p:other_paths)
     {
-      disp->displayPathAndWaypoints(p,path_id,wp_id,"pathplan",marker_color);
+      disp->displayPathAndWaypoints(p,path_id,wp_id,"graph_display",marker_color);
 
       path_id +=1;
       wp_id +=1000;
@@ -791,32 +740,7 @@ void ReplannerManagerMARS::displayOtherPaths()
   }
 
   disp->clearMarkers();
-  ROS_BOLDCYAN_STREAM("Display other paths thread is over");
-}
-
-bool ReplannerManagerMARS::updateTrajectory()
-{
-  PathPtr trj_path = replanner_->getReplannedPath()->clone();
-  double max_distance = solver_->getMaxDistance();
-
-//  trj_path->simplify(0.0005);
-  trj_path->removeNodes(1e-03); //toll 1e-03
-  trj_path->resample(max_distance/5.0);
-
-  // Get robot status at t_+time starting at the beginning of trajectory update
-  // to have a smoother transition from current trajectory to the new one
-  trajectory_msgs::JointTrajectoryPoint pnt;
-  interpolator_.interpolate(ros::Duration(t_+(ros::WallTime::now()-tic_trj_).toSec()),pnt,scaling_);
-
-  trajectory_->setPath(trj_path);
-  robot_trajectory::RobotTrajectoryPtr trj= trajectory_->fromPath2Trj(pnt);
-  moveit_msgs::RobotTrajectory tmp_trj_msg;
-  trj->getRobotTrajectoryMsg(tmp_trj_msg);
-
-  interpolator_.setTrajectory(tmp_trj_msg)   ;
-  interpolator_.setSplineOrder(spline_order_);
-
-  return true;
+  CNR_INFO(logger_,RESET()<<BOLDCYAN()<<"Display other paths thread is over"<<RESET());
 }
 
 void ReplannerManagerMARS::displayThread()

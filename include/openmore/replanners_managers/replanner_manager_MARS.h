@@ -1,11 +1,10 @@
-#ifndef REPLANNER_MANAGER_MARS_H__
-#define REPLANNER_MANAGER_MARS_H__
+#pragma once
 
-#include <replanners_lib/replanner_managers/replanner_manager_base.h>
-#include <replanners_lib/replanners/MARS.h>
+#include <openmore/replanners_managers/replanner_manager_base.h>
+#include <openmore/replanners/MARS.h>
 #include <future>
 
-namespace pathplan
+namespace openmore
 {
 class ReplannerManagerMARS;
 typedef std::shared_ptr<ReplannerManagerMARS> ReplannerManagerMARSPtr;
@@ -18,7 +17,6 @@ protected:
   bool reverse_start_nodes_;
   bool display_other_paths_;
   int verbosity_level_;
-  double dt_replan_relaxed_;
   NodePtr old_current_node_;
   PathPtr initial_path_;
   std::mutex other_paths_mtx_;
@@ -40,19 +38,23 @@ protected:
   virtual bool replan() override;
   virtual void initReplanner() override;
   virtual void collisionCheckThread() override;
-  virtual bool updateTrajectory() override;
 
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   ReplannerManagerMARS(const PathPtr &current_path,
-                        const TreeSolverPtr &solver,
-                        const ros::NodeHandle &nh);
+                       const TrajectoryPtr& trajectory_processor,
+                       const TreeSolverPtr &solver,
+                       const std::string &param_ns,
+                       const TraceLoggerPtr& logger);
 
   ReplannerManagerMARS(const PathPtr &current_path,
-                        const TreeSolverPtr &solver,
-                        const ros::NodeHandle &nh,
-                        std::vector<PathPtr> &other_paths);
+                       const TrajectoryPtr& trajectory_processor,
+                       const TreeSolverPtr &solver,
+                       const std::string &param_ns,
+                       const TraceLoggerPtr& logger,
+                       const std::vector<PathPtr> &other_paths);
+
 
   virtual void setOtherPaths(const std::vector<PathPtr>& other_paths)
   {
@@ -63,5 +65,3 @@ public:
 };
 
 }
-
-#endif // REPLANNER_MANAGER_MARS_H__

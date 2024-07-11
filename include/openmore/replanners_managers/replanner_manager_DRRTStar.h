@@ -1,10 +1,9 @@
-#ifndef REPLANNER_MANAGER_DRRTSTAR_H__
-#define REPLANNER_MANAGER_DRRTSTAR_H__
+#pragma once
 
-#include <replanners_lib/replanner_managers/replanner_manager_base.h>
-#include <replanners_lib/replanners/DRRTStar.h>
+#include <openmore/replanners_managers/replanner_manager_base.h>
+#include <openmore/replanners/DRRTStar.h>
 
-namespace pathplan
+namespace openmore
 {
 class ReplannerManagerDRRTStar;
 typedef std::shared_ptr<ReplannerManagerDRRTStar> ReplannerManagerDRRTStarPtr;
@@ -22,12 +21,12 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   ReplannerManagerDRRTStar(const PathPtr &current_path,
+                           const TrajectoryPtr& trajectory_processor,
                            const TreeSolverPtr &solver,
-                           const ros::NodeHandle &nh);
+                           const std::string &param_ns,
+                           const TraceLoggerPtr& logger);
 
   void startReplannedPathFromNewCurrentConf(const Eigen::VectorXd &configuration) override;
 };
 
 }
-
-#endif // REPLANNER_MANAGER_DRRTSTAR_H__

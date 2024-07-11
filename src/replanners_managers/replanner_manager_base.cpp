@@ -127,6 +127,39 @@ void ReplannerManagerBase::attributeInitialization()
   if(read_safe_scaling_)
     scaling = scaling*readScalingTopics();
 
+  // Check if trajectory_processor_ has already computed a trajectory for current_path_
+  if(trajectory_processor_->getPath().empty())
+    trajectory_processor_->setPath(current_path_->getWaypoints()); //trj is now an empty vector
+  else
+  { //check if the path in the trajectory_processor_ corresponds to the current path
+    bool same_path = true;
+    if(trajectory_processor_->getPath().size() != (current_path_->getConnectionsSize()+1)) //number of waypoints is number of connections + 1
+      same_path = false;
+    else
+    {
+      //if same size, check each waypoint
+      for(size_t i=0;i<trajectory_processor_->getPath().size();i++)
+      {
+        const auto wp = current_path_->getWaypoints();
+        if(trajectory_processor_->getPath()[i] != wp[i])
+        {
+          same_path = false;
+          break;
+        }
+      }
+    }
+
+    if(not same_path)
+      trajectory_processor_->setPath(current_path_->getWaypoints()); //trj is now an empty vector
+  }
+
+  if(trajectory_processor_->getTrj().empty()) //if trj was not computed externally
+    trajectory_processor_->computeTrj();
+
+  pnt_          = std::make_shared<TrjPoint>();
+  pnt_unscaled_ = std::make_shared<TrjPoint>();
+  pnt_replan_   = std::make_shared<TrjPoint>();
+
   trajectory_processor_->interpolate(t_replan_,pnt_replan_  ,scaling            );
   trajectory_processor_->interpolate(t_       ,pnt_         ,scaling            );
   trajectory_processor_->interpolate(t_       ,pnt_unscaled_,scaling_from_param_);

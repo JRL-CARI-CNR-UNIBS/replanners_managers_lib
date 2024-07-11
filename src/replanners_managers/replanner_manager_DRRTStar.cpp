@@ -1,12 +1,15 @@
-﻿#include "replanners_lib/replanner_managers/replanner_manager_DRRTStar.h"
+﻿#include "openmore/replanners_managers/replanner_manager_DRRTStar.h"
 
-namespace pathplan
+namespace openmore
 {
 ReplannerManagerDRRTStar::ReplannerManagerDRRTStar(const PathPtr &current_path,
+                                                   const TrajectoryPtr& trajectory_processor,
                                                    const TreeSolverPtr &solver,
-                                                   const ros::NodeHandle &nh):ReplannerManagerBase(current_path,solver,nh)
+                                                   const std::string &param_ns,
+                                                   const TraceLoggerPtr& logger):
+  ReplannerManagerBase(current_path,trajectory_processor,solver,param_ns,logger)
 {
-  RRTStarPtr tmp_solver = std::make_shared<pathplan::RRTStar>(solver_->getMetrics(), checker_replanning_, solver_->getSampler());
+  RRTStarPtr tmp_solver = std::make_shared<RRTStar>(solver_->getMetrics(), checker_replanning_, solver_->getSampler(),logger_);
   tmp_solver->importFromSolver(solver);
 
   solver_  = tmp_solver;
@@ -37,7 +40,7 @@ void ReplannerManagerDRRTStar::startReplannedPathFromNewCurrentConf(const Eigen:
     assert(conn->getParent() != nullptr && conn->getParent() != nullptr);
 
     current_node = current_path->addNodeAtCurrentConfig(configuration,conn,false);
-    conn = std::make_shared<Connection>(conn->getParent(),current_node);
+    conn = std::make_shared<Connection>(conn->getParent(),current_node,logger_);
     conn->setCost(tree->getMetrics()->cost(conn->getParent(),current_node));
     conn->add();
 
@@ -63,7 +66,7 @@ void ReplannerManagerDRRTStar::startReplannedPathFromNewCurrentConf(const Eigen:
 
           double restored_cost = parent_conn->getCost()+child_conn->getCost();
 
-          ConnectionPtr restored_conn = std::make_shared<Connection>(parent,child);
+          ConnectionPtr restored_conn = std::make_shared<Connection>(parent,child,logger_);
           restored_conn->setCost(restored_cost);
           restored_conn->add();
 
@@ -87,7 +90,7 @@ bool ReplannerManagerDRRTStar::haveToReplan(const bool path_obstructed)
 void ReplannerManagerDRRTStar::initReplanner()
 {
   double time_for_repl = 0.9*dt_replan_;
-  replanner_ = std::make_shared<pathplan::DynamicRRTStar>(configuration_replan_, current_path_, time_for_repl, solver_);
+  replanner_ = std::make_shared<DynamicRRTStar>(configuration_replan_,current_path_,time_for_repl,solver_,logger_);
 }
 
 }

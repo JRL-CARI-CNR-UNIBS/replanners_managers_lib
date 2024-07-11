@@ -1,10 +1,9 @@
-#ifndef REPLANNER_MANAGER_ANYTIMEDRRT_H__
-#define REPLANNER_MANAGER_ANYTIMEDRRT_H__
+#pragma once
 
-#include <replanners_lib/replanner_managers/replanner_manager_DRRT.h>
-#include <replanners_lib/replanners/anytimeDRRT.h>
+#include <openmore/replanners_managers/replanner_manager_DRRT.h>
+#include <openmore/replanners/anytimeDRRT.h>
 
-namespace pathplan
+namespace openmore
 {
 class ReplannerManagerAnytimeDRRT;
 typedef std::shared_ptr<ReplannerManagerAnytimeDRRT> ReplannerManagerAnytimeDRRTPtr;
@@ -20,11 +19,9 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   ReplannerManagerAnytimeDRRT(const PathPtr &current_path,
+                              const TrajectoryPtr& trajectory_processor,
                               const TreeSolverPtr &solver,
-                              const ros::NodeHandle &nh);
-
+                              const std::string &param_ns,
+                              const TraceLoggerPtr& logger);
 };
-
 }
-
-#endif // REPLANNER_MANAGER_ANYTIMEDRRT_H__

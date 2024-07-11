@@ -14,7 +14,6 @@ ReplannerManagerMPRRT::ReplannerManagerMPRRT(const PathPtr &current_path,
   tmp_solver->importFromSolver(solver);
 
   solver_ = tmp_solver;
-  path_optimizer_ = std::make_shared<PathLocalOptimizer>(checker_replanning_,solver_->getMetrics(),logger_);
 
   additionalParams();
 }
@@ -31,6 +30,12 @@ void ReplannerManagerMPRRT::additionalParams()
       n_threads_replan_ = 1;
     }
   }
+}
+
+void ReplannerManagerMPRRT::attributeInitialization()
+{
+  ReplannerManagerBase::attributeInitialization();
+  path_optimizer_ = std::make_shared<PathLocalOptimizer>(checker_replanning_,solver_->getMetrics(),logger_);
 }
 
 void ReplannerManagerMPRRT::startReplannedPathFromNewCurrentConf(const Eigen::VectorXd& configuration)

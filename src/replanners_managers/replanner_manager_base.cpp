@@ -344,7 +344,7 @@ void ReplannerManagerBase::replanningThread()
   Eigen::VectorXd projection = configuration_replan_;
   Eigen::VectorXd past_projection = configuration_replan_;
   Eigen::VectorXd goal_conf = replanner_->getGoal()->getConfiguration();
-  std::vector<Eigen::VectorXd> trj_path_wp;
+  PathPtr trj_path;
 
   while((not stop_) && ros::ok())
   {
@@ -443,7 +443,8 @@ void ReplannerManagerBase::replanningThread()
         startReplannedPathFromNewCurrentConf(current_conf);
         trj_mtx_.unlock();
 
-        trj_path_wp = replanner_->getReplannedPath()->getWaypoints();
+        trj_path = replanner_->getReplannedPath()->clone();
+        trj_path->resample(solver_->getMaxDistance()/10.0); //add more nodes to ensure better tracking
 
         replanner_mtx_.lock();
         trj_mtx_.lock();
@@ -452,7 +453,7 @@ void ReplannerManagerBase::replanningThread()
 
         if(success)
         {
-          trajectory_processor_->setPath(trj_path_wp);
+          trajectory_processor_->setPath(trj_path->getWaypoints());
           trajectory_processor_->computeTrj();
 
           t_ = scaling_*(ros::WallTime::now()-tic_trj_).toSec(); //0.0

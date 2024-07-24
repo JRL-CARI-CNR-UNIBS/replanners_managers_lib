@@ -228,7 +228,10 @@ void ReplannerManagerBase::subscribeTopicsAndServices()
   if(benchmark_)
     text_overlay_pub_ = nh_.advertise<jsk_rviz_plugins::OverlayText>("/rviz_text_overlay_replanner_bench",1);
 
-  plannning_scene_client_ = nh_.serviceClient<moveit_msgs::GetPlanningScene>("/get_planning_scene");
+  if(not ros::service::waitForService("/get_planning_scene",10))
+    throw std::runtime_error("server /get_planning_scene not available");
+
+  plannning_scene_client_ = nh_.serviceClient<moveit_msgs::GetPlanningScene>("/get_planning_scene",true);
 
   if(not plannning_scene_client_.waitForExistence(ros::Duration(10)))
     throw std::runtime_error("unable to connect to /get_planning_scene");
@@ -237,9 +240,12 @@ void ReplannerManagerBase::subscribeTopicsAndServices()
   {
     obj_pose_pub_ = nh_.advertise<geometry_msgs::PoseArray>(obs_pose_topic_,10);
 
-    add_obj_    = nh_.serviceClient<cnr_scene_manager_msgs::AddObjects   >("/cnr_scene_manager/add_objects"   );
-    move_obj_   = nh_.serviceClient<cnr_scene_manager_msgs::MoveObjects  >("/cnr_scene_manager/move_objects"  );
-    remove_obj_ = nh_.serviceClient<cnr_scene_manager_msgs::RemoveObjects>("/cnr_scene_manager/remove_objects");
+    if(not ros::service::waitForService("/cnr_scene_manager/move_objects",10))
+      throw std::runtime_error("server /cnr_scene_manager/move_objects not available");
+
+    add_obj_    = nh_.serviceClient<cnr_scene_manager_msgs::AddObjects   >("/cnr_scene_manager/add_objects"   ,false);
+    move_obj_   = nh_.serviceClient<cnr_scene_manager_msgs::MoveObjects  >("/cnr_scene_manager/move_objects"  ,true );
+    remove_obj_ = nh_.serviceClient<cnr_scene_manager_msgs::RemoveObjects>("/cnr_scene_manager/remove_objects",false);
 
     if(not add_obj_.waitForExistence(ros::Duration(10)))
     {

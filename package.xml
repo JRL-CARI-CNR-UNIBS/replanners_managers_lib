@@ -19,6 +19,7 @@
   <depend>cnr_scene_manager_msgs</depend>
   <depend>moveit_collision_checker</depend>
   <depend>subscription_notifier</depend>
+  <depend>jsk_rviz_plugins</depend>
 
   <depend>replanners_lib</depend>
   <depend>trajectories_processors_lib</depend>

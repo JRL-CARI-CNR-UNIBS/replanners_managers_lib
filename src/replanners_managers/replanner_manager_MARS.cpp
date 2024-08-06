@@ -145,16 +145,16 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
                  else
                  {
                    for(const ConnectionPtr c:old_current_node_->getParentConnections())
-                   CNR_INFO(logger_,"parent conn"<<*c);
+                   CNR_INFO(logger_,"parent conn "<<*c);
 
                    for(const ConnectionPtr c:old_current_node_->getNetParentConnections())
-                   CNR_INFO(logger_,"net parent conn"<<*c);
+                   CNR_INFO(logger_,"net parent conn "<<*c);
+
                    CNR_INFO(logger_,"current path "<<*current_path);
                    CNR_INFO(logger_,"old current node "<<*old_current_node_<<old_current_node_);
 
                    return false;
                  }
-
                }
                ());
 
@@ -184,6 +184,8 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
             assert(not tree->isInTree(old_current_node_));
           }
+
+          CNR_INFO(logger_,RESET()<<BC()<<"OLD CURRENT NODE REMOVED");
         }
       }
     }
@@ -241,20 +243,33 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
     if(distance==0)
     {
-      assert(node_replan == current_node);
+      CNR_INFO(logger_,RESET()<<BC()<<"DISTANCE ZERO");
+
+
+      if(node_replan != current_node)
+        throw std::runtime_error("shoudl be the same node");
     }
-    else if(distance<0)
+    else if(distance<0) //replan node before current node on current path
     {
+
+      CNR_INFO(logger_,RESET()<<BC()<<"DISTANCE <0");
+
       size_t idx;
       ConnectionPtr current_conn = replanned_path->findConnection(configuration,idx,true);
       if(current_conn != nullptr) //current node is on replanned path
       {
+        CNR_INFO(logger_,RESET()<<BC()<<"\t -> CASE 1");
+
         if(current_conn->getParent() == current_node || current_conn->getChild() == current_node)
         {
+          CNR_INFO(logger_,RESET()<<BC()<<"\t -> CASE 1.1");
+
           replanned_path->setConnections(replanned_path->getSubpathFromNode(current_node)->getConnections());
         }
         else
         {
+          CNR_INFO(logger_,RESET()<<BC()<<"\t -> CASE 1.2");
+
           if(conn != current_conn)
           {
             CNR_INFO(logger_,"conf "<<configuration.transpose());
@@ -267,7 +282,6 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
             stop_ = true;
             if(not display_thread_.joinable())
               display_thread_.join();
-
 
             DisplayPtr disp = std::make_shared<Display>(planning_scn_cc_,group_name_);
             disp->clearMarkers();
@@ -283,7 +297,6 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
             ros::Duration(1).sleep();
 
             throw std::runtime_error("err");
-
           }
 
           if(not replanned_path->splitConnection(current_path->getConnectionsConst().at(conn_idx),
@@ -295,6 +308,8 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
       }
       else
       {
+        CNR_INFO(logger_,RESET()<<BC()<<"\t -> CASE 2");
+
         //current node should be very close to replan node, minimal difference between the connections
 
         std::vector<ConnectionPtr> replanned_path_conns = replanned_path->getConnections();
@@ -314,8 +329,10 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
         replanned_path->setConnections(replanned_path_conns);
       }
     }
-    else //distance>0
+    else //distance>0 //replan node after current node on current path
     {
+      CNR_INFO(logger_,RESET()<<BC()<<"DISTANCE > 0");
+
       assert(current_node != node_replan);
       assert((current_node->getConfiguration()-node_replan->getConfiguration()).norm()>TOLERANCE);
 
@@ -337,6 +354,9 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
       new_conns.insert(new_conns.end(),replanned_path->getConnectionsConst().begin(),replanned_path->getConnectionsConst().end());
       replanned_path->setConnections(new_conns);
+
+      CNR_INFO(logger_,RESET()<<BC()<<"NEW PATH\n"<<*replanned_path);
+
 
       if(old_current_node_ != nullptr)
       {
@@ -525,16 +545,18 @@ void ReplannerManagerMARS::collisionCheckThread()
   size_t other_path_size = other_paths_copy.size();
 
   ros::WallRate lp(collision_checker_thread_frequency_);
-  ros::WallTime tic;
+  graph_time_point tic;
 
   moveit_msgs::PlanningScene planning_scene_msg;
 
   while((not stop_) && ros::ok())
   {
-    tic = ros::WallTime::now();
+    tic = graph_time::now();
 
-    /* Update planning scene */
-    ps_srv.request.components.components = 20; //moveit_msgs::PlanningSceneComponents::WORLD_OBJECT_GEOMETRY + moveit_msgs::PlanningSceneComponents::ROBOT_STATE_ATTACHED_OBJECTS
+    /* Update the planning scene:
+     * moveit_msgs::PlanningSceneComponents::WORLD_OBJECT_GEOMETRY +
+     * moveit_msgs::PlanningSceneComponents::ROBOT_STATE_ATTACHED_OBJECTS */
+    ps_srv.request.components.components = 20;
 
     if(not plannning_scene_client_.call(ps_srv))
     {
@@ -546,18 +568,18 @@ void ReplannerManagerMARS::collisionCheckThread()
     scene_mtx_.lock();
     planning_scene_msg.world = ps_srv.response.scene.world;
     planning_scene_msg.is_diff = true;
-
     checker_cc_->setPlanningSceneMsg(planning_scene_msg);
+
     for(const MoveitCollisionCheckerPtr& checker: checkers)
       checker->setPlanningSceneMsg(planning_scene_msg);
     scene_mtx_.unlock();
 
     /* Update paths if they have been changed */
     trj_mtx_.lock();
-    paths_mtx_.lock();
 
     current_configuration_copy = current_configuration_;
 
+    paths_mtx_.lock();
     if(current_path_sync_needed_)
     {
       current_path_copy = current_path_shared_->clone();
@@ -612,8 +634,7 @@ void ReplannerManagerMARS::collisionCheckThread()
 
     //current_path_copy->isValidFromConf(current_configuration_copy,checker_cc_);
     size_t conn_idx;
-    current_path_copy->findConnection(current_configuration_copy,conn_idx);
-    if(conn_idx<0)
+    if(not current_path_copy->findConnection(current_configuration_copy,conn_idx))
       continue;
     else
       current_path_copy->isValidFromConf(current_configuration_copy,conn_idx,checker_cc_);
@@ -623,17 +644,20 @@ void ReplannerManagerMARS::collisionCheckThread()
 
     /* Update the cost of the paths */
     scene_mtx_.lock();
+    paths_mtx_.lock();
+    other_paths_mtx_.lock();
     if(uploadPathsCost(current_path_copy,other_paths_copy))
     {
       planning_scene_msg_.world = ps_srv.response.scene.world;  //not diff,it contains all pln scn info but only world is updated
       planning_scene_diff_msg_ = planning_scene_msg;            //diff, contains only world
 
-      download_scene_info_ = true;      //dowloadPathCost can be called because the scene and path cost are referred now to the last path found
-
+      cost_updated_ = true;      //dowloadPathCost can be called because the scene and path cost are referred now to the last path found
     }
+    other_paths_mtx_.unlock();
+    paths_mtx_.unlock();
     scene_mtx_.unlock();
 
-    double duration = (ros::WallTime::now()-tic).toSec();
+    double duration = toSeconds(graph_time::now(),tic);
 
     if(duration>(1.0/collision_checker_thread_frequency_) && display_timing_warning_)
       CNR_INFO(logger_,RESET()<<BOLDYELLOW()<<"Collision checking thread time expired: total duration-> "<<duration<<RESET());
@@ -646,54 +670,67 @@ void ReplannerManagerMARS::collisionCheckThread()
 
 bool ReplannerManagerMARS::uploadPathsCost(const PathPtr& current_path_updated_copy, const std::vector<PathPtr>& other_paths_updated_copy)
 {
-  bool updated = true;
-
-  paths_mtx_.lock();
-  if(not current_path_sync_needed_)
+  /*
+   * Ensure all path costs are updated simultaneously.
+   * If this isn't possible, avoid updating any path to maintain consistency and simplicity.
+   */
+  bool syncronized = (not current_path_sync_needed_) && std::all_of(other_paths_sync_needed_.begin(), other_paths_sync_needed_.end(), [](bool v) { return !v;});
+  if(!syncronized)
   {
-    std::vector<ConnectionPtr> current_path_conns      = current_path_shared_     ->getConnections();
-    std::vector<ConnectionPtr> current_path_copy_conns = current_path_updated_copy->getConnections();
+    return false;
+  }
+  else
+  {
+    // Update current path cost
+    std::vector<ConnectionPtr> current_path_conns      = current_path_shared_     ->getConnectionsConst();
+    std::vector<ConnectionPtr> current_path_copy_conns = current_path_updated_copy->getConnectionsConst();
 
     for(unsigned int j=0;j<current_path_conns.size();j++)
     {
-      assert((current_path_conns.at(j)->getParent()->getConfiguration() == current_path_copy_conns.at(j)->getParent()->getConfiguration()) &&
-             (current_path_conns.at(j)->getChild() ->getConfiguration() == current_path_copy_conns.at(j)->getChild() ->getConfiguration()));
+      assert([&]
+      {
+        if(current_path_conns.at(j)->getParent()->getConfiguration()!=current_path_copy_conns.at(j)->getParent()->getConfiguration())
+        {
+          CNR_ERROR(logger_,"current parent\n"<<*current_path_conns.at(j)->getParent());
+          CNR_ERROR(logger_,"copied parent\n"<<*current_path_copy_conns.at(j)->getParent());
+          return false;
+        }
+
+        if(current_path_conns.at(j)->getChild()->getConfiguration()!=current_path_copy_conns.at(j)->getChild()->getConfiguration())
+        {
+          CNR_ERROR(logger_,"current child\n"<<*current_path_conns.at(j)->getChild());
+          CNR_ERROR(logger_,"copied child\n"<<*current_path_copy_conns.at(j)->getChild());
+          return false;
+        }
+        return true;
+      }());
 
       current_path_conns.at(j)->setCost(current_path_copy_conns.at(j)->getCost());
     }
     current_path_shared_->cost();
-  }
-  else
-    updated = false;
 
-  if(current_path_shared_->getCostFromConf(current_configuration_) == std::numeric_limits<double>::infinity() && (display_timing_warning_ || display_replanning_success_))
-    CNR_INFO(logger_,RESET()<<BOLDMAGENTA()<<"Obstacle detected!"<<RESET());
+    if(current_path_shared_->getCostFromConf(current_configuration_) == std::numeric_limits<double>::infinity() && (display_timing_warning_ || display_replanning_success_))
+      CNR_INFO(logger_,RESET()<<BOLDMAGENTA()<<"Obstacle detected!"<<RESET());
 
-  other_paths_mtx_.lock();
-  for(unsigned int i=0;i<other_paths_updated_copy.size();i++)
-  {
-    if(not other_paths_sync_needed_.at(i))
+    // Update other paths costs
+    for(unsigned int i=0;i<other_paths_updated_copy.size();i++)
     {
-      std::vector<ConnectionPtr> path_conns      = other_paths_shared_     .at(i)->getConnections();
-      std::vector<ConnectionPtr> path_copy_conns = other_paths_updated_copy.at(i)->getConnections();
+      std::vector<ConnectionPtr> path_conns      = other_paths_shared_     .at(i)->getConnectionsConst();
+      std::vector<ConnectionPtr> path_copy_conns = other_paths_updated_copy.at(i)->getConnectionsConst();
 
       assert(path_conns.size() == path_copy_conns.size());
       for(unsigned int j=0;j<path_conns.size();j++)
       {
         path_conns.at(j)->setCost(path_copy_conns.at(j)->getCost());
 
-        assert((path_conns.at(j)->getParent()->getConfiguration() == path_copy_conns.at(j)->getParent()->getConfiguration()) &&
-               (path_conns.at(j)->getChild() ->getConfiguration() == path_copy_conns.at(j)->getChild() ->getConfiguration()));
+        assert((path_conns.at(j)->getParent()->getConfiguration()-path_copy_conns.at(j)->getParent()->getConfiguration()).norm()<1e-06 &&
+               (path_conns.at(j)->getChild() ->getConfiguration()-path_copy_conns.at(j)->getChild() ->getConfiguration()).norm()<1e-06);
       }
       other_paths_shared_.at(i)->cost();
     }
-    else
-      updated = false;
-  }
-  other_paths_mtx_.unlock();
-  paths_mtx_.unlock();       //here to sync the cost of all paths
 
-  return updated;
+    return true;
+  }
 }
 
 void ReplannerManagerMARS::displayCurrentPath()

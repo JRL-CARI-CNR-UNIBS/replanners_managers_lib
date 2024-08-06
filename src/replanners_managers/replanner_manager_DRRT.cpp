@@ -78,7 +78,13 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
     std::vector<ConnectionPtr> new_tree_branch_connections = new_tree_branch->getConnections();
     current_node = new_tree_branch_connections.back()->getChild();
-    assert(current_node->getConfiguration() == configuration);
+    assert([&]{
+      if((current_node->getConfiguration()-configuration).norm()<1e-06)
+        return true;
+
+      CNR_ERROR(logger_,"\ncurrent_node conf: "<<current_node->getConfiguration().transpose()<<"\nconfiguration: "<<configuration.transpose());
+      return false;
+    }());
 
     ConnectionPtr conn2delete = new_tree_branch_connections.at(0);
     NodePtr child = conn2delete->getChild();

@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 project(replanners_managers_lib)
 
 if(NOT CMAKE_BUILD_TYPE)
-  # set(CMAKE_BUILD_TYPE "Release")
-  set(CMAKE_BUILD_TYPE "Debug")
+  set(CMAKE_BUILD_TYPE "Release")
+  #set(CMAKE_BUILD_TYPE "Debug")
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -26,12 +26,13 @@ find_package(catkin REQUIRED COMPONENTS
   graph_display
   cnr_scene_manager_msgs
   moveit_collision_checker
+  jsk_rviz_plugins
   )
 
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS roscpp graph_display moveit_collision_checker cnr_scene_manager_msgs
+  CATKIN_DEPENDS roscpp graph_display moveit_collision_checker cnr_scene_manager_msgs jsk_rviz_plugins
   DEPENDS replanners_lib trajectories_processors_lib
   )
 

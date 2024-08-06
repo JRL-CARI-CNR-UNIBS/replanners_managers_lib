@@ -19,20 +19,27 @@ ReplannerManagerBase::ReplannerManagerBase(const PathPtr &current_path,
 
 ReplannerManagerBase::~ReplannerManagerBase()
 {
+  stop();
 }
 
 void ReplannerManagerBase::fromParam()
 {
   unsigned int trj_freq_default = 500;
-  unsigned int cc_freq_default = 30;
-  unsigned int cc_n_threads_default = std::thread::hardware_concurrency();
+  unsigned int cc_freq_default = 100;
 
   get_param(logger_,param_ns_,"trj_execution_thread_frequency",trj_exec_thread_frequency_,trj_freq_default);
   get_param(logger_,param_ns_,"collision_checker_thread_frequency",collision_checker_thread_frequency_,cc_freq_default);
   get_param(logger_,param_ns_,"dt_replan",dt_replan_,0.100);
   get_param(logger_,param_ns_,"checker_resolution",checker_resolution_,0.05);
-  get_param(logger_,param_ns_,"parallel_checker_n_threads",parallel_checker_n_threads_,cc_n_threads_default);
   get_param(logger_,param_ns_,"read_safe_scaling",read_safe_scaling_,false);
+  get_param(logger_,param_ns_,"use_parallel_checker",use_parallel_checker_,true);
+  get_param(logger_,param_ns_,"replanning_enabled",replanning_enabled_,true);
+
+  if(use_parallel_checker_)
+  {
+    unsigned int cc_n_threads_default = 4;
+    get_param(logger_,param_ns_,"parallel_checker_n_threads",parallel_checker_n_threads_,cc_n_threads_default);
+  }
 
   if(read_safe_scaling_)
     get_param(logger_,param_ns_,"overrides",scaling_topics_names_,{"/speed_ovr","/safe_ovr_1","/safe_ovr_2"});
@@ -59,7 +66,7 @@ void ReplannerManagerBase::fromParam()
   get_param(logger_,param_ns_,"display_replan_config",display_replan_config_,true);
   get_param(logger_,param_ns_,"display_current_trj_point",display_current_trj_point_,true);
   get_param(logger_,param_ns_,"display_current_config",display_current_config_,true);
-  get_param(logger_,param_ns_,"which_link_display_path",which_link_display_path_,std::string(""));
+  get_param(logger_,param_ns_,"which_link_display_path",which_link_display_path_,std::string("end_effector"));
   get_param(logger_,param_ns_,"benchmark",benchmark_,false);
 
   if(get_param(logger_,param_ns_,"virtual_obj/spawn_objs",spawn_objs_,false))
@@ -79,7 +86,7 @@ void ReplannerManagerBase::attributeInitialization()
 {
   stop_                        = false;
   goal_reached_                = false;
-  download_scene_info_         = true ;
+  cost_updated_                = true ;
   current_path_sync_needed_    = false;
   replanning_time_             = 0.0  ;
   scaling_                     = 1.0  ;
@@ -116,8 +123,16 @@ void ReplannerManagerBase::attributeInitialization()
 
   current_path_shared_ = current_path_->clone();
 
-  checker_cc_         = std::make_shared<ParallelMoveitCollisionChecker>(planning_scn_cc_,        group_name_,logger_,parallel_checker_n_threads_,checker_resolution_);
-  checker_replanning_ = std::make_shared<ParallelMoveitCollisionChecker>(planning_scn_replanning_,group_name_,logger_,parallel_checker_n_threads_,checker_resolution_);
+  if(use_parallel_checker_)
+  {
+    checker_cc_         = std::make_shared<ParallelMoveitCollisionChecker>(planning_scn_cc_,        group_name_,logger_,parallel_checker_n_threads_,checker_resolution_);
+    checker_replanning_ = std::make_shared<ParallelMoveitCollisionChecker>(planning_scn_replanning_,group_name_,logger_,parallel_checker_n_threads_,checker_resolution_);
+  }
+  else
+  {
+    checker_cc_         = std::make_shared<MoveitCollisionChecker>(planning_scn_cc_,        group_name_,logger_,checker_resolution_);
+    checker_replanning_ = std::make_shared<MoveitCollisionChecker>(planning_scn_replanning_,group_name_,logger_,checker_resolution_);
+  }
 
   current_path_shared_->setChecker(checker_cc_        );
   current_path_       ->setChecker(checker_replanning_);
@@ -228,10 +243,14 @@ void ReplannerManagerBase::subscribeTopicsAndServices()
   if(benchmark_)
     text_overlay_pub_ = nh_.advertise<jsk_rviz_plugins::OverlayText>("/rviz_text_overlay_replanner_bench",1);
 
+  /*
+   * '/get_planning_scene' is continuously called by the collisionCheckThread.
+   *  Use a persistent connection to the server to improve performance
+   */
   if(not ros::service::waitForService("/get_planning_scene",10))
     throw std::runtime_error("server /get_planning_scene not available");
 
-  plannning_scene_client_ = nh_.serviceClient<moveit_msgs::GetPlanningScene>("/get_planning_scene",true);
+  plannning_scene_client_ = nh_.serviceClient<moveit_msgs::GetPlanningScene>("/get_planning_scene",true); //persistent connection becuase it is called repeatedly
 
   if(not plannning_scene_client_.waitForExistence(ros::Duration(10)))
     throw std::runtime_error("unable to connect to /get_planning_scene");
@@ -240,11 +259,15 @@ void ReplannerManagerBase::subscribeTopicsAndServices()
   {
     obj_pose_pub_ = nh_.advertise<geometry_msgs::PoseArray>(obs_pose_topic_,10);
 
+    /*
+     * '/cnr_scene_manager/move_objects' is continuously called by the spwanObjectsThread.
+     *  Use a persistent connection to the server to improve performance
+     */
     if(not ros::service::waitForService("/cnr_scene_manager/move_objects",10))
       throw std::runtime_error("server /cnr_scene_manager/move_objects not available");
 
     add_obj_    = nh_.serviceClient<cnr_scene_manager_msgs::AddObjects   >("/cnr_scene_manager/add_objects"   ,false);
-    move_obj_   = nh_.serviceClient<cnr_scene_manager_msgs::MoveObjects  >("/cnr_scene_manager/move_objects"  ,true );
+    move_obj_   = nh_.serviceClient<cnr_scene_manager_msgs::MoveObjects  >("/cnr_scene_manager/move_objects"  ,true ); //persistent connection becuase it is called repeatedly
     remove_obj_ = nh_.serviceClient<cnr_scene_manager_msgs::RemoveObjects>("/cnr_scene_manager/remove_objects",false);
 
     if(not add_obj_.waitForExistence(ros::Duration(10)))
@@ -273,7 +296,7 @@ void ReplannerManagerBase::updateSharedPath()
   current_path_shared_->setChecker(checker_cc_);
   current_path_sync_needed_ = true;
 
-  download_scene_info_ = false;
+  cost_updated_ = false;
 }
 
 void ReplannerManagerBase::downloadPathCost()
@@ -307,8 +330,9 @@ bool ReplannerManagerBase::uploadPathCost(const PathPtr& current_path_updated_co
 
   if(not current_path_sync_needed_)
   {
-    std::vector<ConnectionPtr> current_path_conns      = current_path_shared_     ->getConnections();
-    std::vector<ConnectionPtr> current_path_copy_conns = current_path_updated_copy->getConnections();
+    std::vector<ConnectionPtr> current_path_conns      = current_path_shared_     ->getConnectionsConst();
+    std::vector<ConnectionPtr> current_path_copy_conns = current_path_updated_copy->getConnectionsConst();
+
     for(size_t z=0;z<current_path_conns.size();z++)
     {
       assert(current_path_conns.size() == current_path_copy_conns.size());
@@ -318,10 +342,11 @@ bool ReplannerManagerBase::uploadPathCost(const PathPtr& current_path_updated_co
       current_path_conns.at(z)->setCost(current_path_copy_conns.at(z)->getCost());
     }
     current_path_shared_->cost();
-
   }
   else
+  {
     updated = false;
+  }
 
   if(current_path_shared_->getCostFromConf(current_configuration_) == std::numeric_limits<double>::infinity() && (display_timing_warning_ || display_replanning_success_))
     CNR_INFO(logger_,RESET()<<BOLDMAGENTA()<<"Obstacle detected!"<<RESET());
@@ -329,14 +354,38 @@ bool ReplannerManagerBase::uploadPathCost(const PathPtr& current_path_updated_co
   return updated;
 }
 
+PathPtr ReplannerManagerBase::preprocessTrajectoryPath(const PathPtr& path)
+{
+  auto wp = path->getWaypoints();
+  wp.erase(std::unique(wp.begin(), wp.end(), [&](const Eigen::VectorXd& v1, const Eigen::VectorXd& v2) {
+    return v1.isApprox(v2);
+  }), wp.end());
+
+  std::vector<NodePtr> nodes;
+  nodes.reserve(wp.size());
+
+  for (const auto& w : wp)
+    nodes.push_back( std::make_shared<Node>(w,logger_));
+
+  PathPtr trj_path = std::make_shared<Path>(nodes,path->getMetrics(),path->getChecker(),logger_);
+
+  trj_path->removeNodes(1e-06);
+  trj_path->resample(solver_->getMaxDistance()/2.0); //add more nodes to ensure better tracking
+
+  CNR_INFO(logger_,RESET()<<BG()<<"AFTER PREPROCESSING\n"<<*trj_path);
+
+  return trj_path;
+}
+
 void ReplannerManagerBase::replanningThread()
 {
   ros::WallRate lp(replanning_thread_frequency_);
   ros::WallRate fast_lp(2000);
 
-  ros::WallTime tic,toc,tic_rep,toc_rep;
+  graph_time_point tic,toc,tic_rep,toc_rep;
 
   PathPtr path2project_on;
+  TrjPointPtr pnt = pnt_;
   Eigen::VectorXd current_configuration;
   Eigen::VectorXd point2project(pnt_replan_->state_->pos_.size());
 
@@ -354,13 +403,7 @@ void ReplannerManagerBase::replanningThread()
 
   while((not stop_) && ros::ok())
   {
-    tic = ros::WallTime::now();
-
-    if(not download_scene_info_)
-    {
-      fast_lp.sleep(); //wait for 0.5 ms
-      continue;
-    }
+    tic = graph_time::now();
 
     trj_mtx_.lock();
     trajectory_processor_->interpolate(t_replan_,pnt_replan_,scaling_);
@@ -391,11 +434,15 @@ void ReplannerManagerBase::replanningThread()
       replanner_mtx_.unlock();
 
       scene_mtx_.lock();
-      checker_replanning_->setPlanningSceneMsg(planning_scene_diff_msg_);
       paths_mtx_.lock();
-      downloadPathCost();
+      if(cost_updated_)
+      {
+        checker_replanning_->setPlanningSceneMsg(planning_scene_diff_msg_);
+        downloadPathCost();
+        planning_scene_msg_benchmark_ = planning_scene_msg_;
+      }
+
       paths_mtx_.unlock();
-      planning_scene_msg_benchmark_ = planning_scene_msg_;
       scene_mtx_.unlock();
 
       replanner_mtx_.lock();
@@ -422,11 +469,11 @@ void ReplannerManagerBase::replanningThread()
       {
         n_size_before = current_path_->getConnectionsSize();
 
-        tic_rep=ros::WallTime::now();
+        tic_rep=graph_time::now();
         path_changed = replan();      //path may have changed even though replanning was unsuccessful
-        toc_rep=ros::WallTime::now();
+        toc_rep=graph_time::now();
 
-        replanning_duration = (toc_rep-tic_rep).toSec();
+        replanning_duration = toSeconds(toc_rep,tic_rep);
         success = replanner_->getSuccess();
 
         bench_mtx_.lock();
@@ -446,25 +493,45 @@ void ReplannerManagerBase::replanningThread()
       {
         trj_mtx_.lock();
         Eigen::VectorXd current_conf = current_configuration_;
+        tic_current_conf_ = graph_time::now();
+
         startReplannedPathFromNewCurrentConf(current_conf);
         trj_mtx_.unlock();
-
-        trj_path = replanner_->getReplannedPath()->clone();
-        trj_path->removeNodes(solver_->getMaxDistance()/100.0);
-        trj_path->resample(solver_->getMaxDistance()/10.0); //add more nodes to ensure better tracking
 
         replanner_mtx_.lock();
         trj_mtx_.lock();
 
-        tic_trj_ = ros::WallTime::now();
-
         if(success)
         {
-          trajectory_processor_->setPath(trj_path->getWaypoints());
-          trajectory_processor_->computeTrj();
+          trj_path = preprocessTrajectoryPath(replanner_->getReplannedPath());
 
-          t_ = scaling_*(ros::WallTime::now()-tic_trj_).toSec(); //0.0
+          trajectory_processor_->setPath(trj_path->getWaypoints());
+          trajectory_processor_->computeTrj(pnt_->state_);
+
+          CNR_INFO(logger_,RESET()<<BY()<<"pnt\n"<<*pnt_->state_);
+
+          CNR_INFO(logger_,RESET()<<BY()<<"trj\n"<<trajectory_processor_->getTrj());
+
+          t_ = scaling_*toSeconds(graph_time::now(),tic_current_conf_); //0.0
           t_replan_ = t_+time_shift_*scaling_;
+
+          /*
+           * Ensure that current_configuration_ is updated to reflect the new path.
+           * If this thread's loop starts again before trajectoryExecutionThread's new loop,
+           * current_configuration_ might still refer to the old path. Updating it here
+           * guarantees consistency with the new trajectory.
+           */
+          trajectory_processor_->interpolate(t_,pnt,scaling_);
+
+          for(size_t i=0; i<pnt->state_->pos_.size();i++)
+            point2project[i] = pnt->state_->pos_[i];
+
+          path2project_on = replanner_->getReplannedPath();
+
+          if(path2project_on->findConnection(current_configuration_))
+            current_configuration_ = path2project_on->projectOnPath(point2project,current_configuration_);
+          else
+            current_configuration_ = path2project_on->projectOnPath(point2project);
         }
 
         current_path_ = replanner_->getReplannedPath();
@@ -480,8 +547,8 @@ void ReplannerManagerBase::replanningThread()
         replanner_mtx_.unlock();
       }
 
-      toc=ros::WallTime::now();
-      duration = (toc-tic).toSec();
+      toc=graph_time::now();
+      duration = toSeconds(toc,tic);
 
       if(display_timing_warning_ && duration>(dt_replan_/0.9))
         CNR_INFO(logger_,RESET()<<BOLDYELLOW()<<"Replanning thread time expired: duration-> "<<duration<<" replanning time-> "<<replanning_duration<<RESET());
@@ -502,14 +569,14 @@ void ReplannerManagerBase::collisionCheckThread()
   current_path_copy->setChecker(checker_cc_);
 
   double duration;
-  ros::WallTime tic,toc;
+  graph_time_point tic,toc;
   ros::WallRate lp(collision_checker_thread_frequency_);
 
   moveit_msgs::PlanningScene planning_scene_msg;
 
   while ((not stop_) && ros::ok())
   {
-    tic = ros::WallTime::now();
+    tic = graph_time::now();
 
     /* Update the planning scene:
      * moveit_msgs::PlanningSceneComponents::WORLD_OBJECT_GEOMETRY +
@@ -562,13 +629,13 @@ void ReplannerManagerBase::collisionCheckThread()
       planning_scene_msg_.world = ps_srv.response.scene.world;  //not diff,it contains all pln scn info but only world is updated
       planning_scene_diff_msg_ = planning_scene_msg;            //diff, contains only world
 
-      download_scene_info_ = true;      //dowloadPathCost can be called because the scene and path cost are referred now to the last path found
+      cost_updated_ = true;      //dowloadPathCost can be called because the scene and path cost are referred now to the last path found
     }
     paths_mtx_.unlock();
     scene_mtx_.unlock();
 
-    toc=ros::WallTime::now();
-    duration = (toc-tic).toSec();
+    toc=graph_time::now();
+    duration = toSeconds(toc,tic);
 
     if(duration>(1.0/double(collision_checker_thread_frequency_)) && display_timing_warning_)
       CNR_INFO(logger_,RESET()<<BOLDYELLOW()<<"Collision checking thread time expired: total duration-> "<<duration<<RESET());
@@ -648,7 +715,7 @@ double ReplannerManagerBase::readScalingTopics()
 void ReplannerManagerBase::trajectoryExecutionThread()
 {
   double  duration;
-  ros::WallTime tic,toc;
+  graph_time_point tic,toc;
   PathPtr path2project_on;
   Eigen::VectorXd point2project(pnt_->state_->pos_.size());
   Eigen::VectorXd goal_conf = replanner_->getGoal()->getConfiguration();
@@ -657,7 +724,7 @@ void ReplannerManagerBase::trajectoryExecutionThread()
 
   while((not stop_) && ros::ok())
   {
-    tic = ros::WallTime::now();
+    tic = graph_time::now();
 
     trj_mtx_.lock();
 
@@ -704,9 +771,10 @@ void ReplannerManagerBase::trajectoryExecutionThread()
     target_pub_         .publish(new_joint_state_)         ;
     unscaled_target_pub_.publish(new_joint_state_unscaled_);
 
-    toc = ros::WallTime::now();
-    duration = (toc-tic).toSec();
-    if(duration>(1.0/double(trj_exec_thread_frequency_)) && display_timing_warning_)
+    toc = graph_time::now();
+    duration = toSeconds(toc,tic);
+//    if(duration>(1.0/double(trj_exec_thread_frequency_)) && display_timing_warning_)
+    if(duration>(1.0/double(trj_exec_thread_frequency_)))
       CNR_INFO(logger_,RESET()<<BOLDYELLOW()<<"Trj execution thread time expired: duration-> "<<duration<<RESET());
 
     lp.sleep();
@@ -829,10 +897,10 @@ void ReplannerManagerBase::spawnObjectsThread()
   std::string last_link = planning_scene->getRobotModel()->getJointModelGroup(group_name_)->getLinkModelNames().back();
 
   PathPtr current_path;
-  Eigen::VectorXd obj_conf, replan_conf;
+  Eigen::VectorXd obj_conf, current_conf;
   Eigen::VectorXd goal_conf = current_path_shared_->getGoalNode()->getConfiguration();
 
-  Eigen::Vector3d replan_pose, obj_pose;
+  Eigen::Vector3d current_pose, obj_pose;
   Eigen::Vector3d goal_pose = forwardIk(goal_conf,last_link,planning_scene);
 
   std::vector<std::string> ids;
@@ -873,19 +941,19 @@ void ReplannerManagerBase::spawnObjectsThread()
       {
         spawn_instants_.pop_back();
 
-        replanner_mtx_.lock();
+        trj_mtx_.lock();
         paths_mtx_.lock();
 
         current_path = current_path_shared_->clone();
-        replan_conf = configuration_replan_;
+        current_conf = current_configuration_;
 
         paths_mtx_.unlock();
-        replanner_mtx_.unlock();
+        trj_mtx_.unlock();
 
         current_path->setChecker(checker);
-        current_path = current_path->getSubpathFromConf(replan_conf,true);
+        current_path = current_path->getSubpathFromConf(current_conf,true);
 
-        replan_pose = forwardIk(replan_conf,last_link,planning_scene);
+        current_pose = forwardIk(current_conf,last_link,planning_scene);
 
         double obj_abscissa = 0.0;
         while(not stop_ && ros::ok())
@@ -896,7 +964,7 @@ void ReplannerManagerBase::spawnObjectsThread()
           obj_pose = forwardIk(obj_conf,last_link,planning_scene);
 
           // to no collide with the robot or the goal
-          if((obj_pose-replan_pose).norm()>obj_max_size_ && (obj_conf-replan_conf).norm()>obj_max_size_ &&
+          if((obj_pose-current_pose).norm()>obj_max_size_ && (obj_conf-current_conf).norm()>obj_max_size_ &&
              (obj_pose-goal_pose  ).norm()>obj_max_size_ && (obj_conf-goal_conf  ).norm()>obj_max_size_  )
             break;
         }
@@ -1091,13 +1159,13 @@ void ReplannerManagerBase::benchmarkThread()
   overlayed_text.action = overlayed_text.ADD;
 
   double cycle_duration;
-  ros::WallTime tic, toc;
+  graph_time_point tic, toc;
   unsigned int freq = 2*trj_exec_thread_frequency_;
   ros::WallRate lp(freq);
 
   while((not stop_) && ros::ok())
   {
-    tic = ros::WallTime::now();
+    tic = graph_time::now();
 
     if(success)
     {
@@ -1180,8 +1248,8 @@ void ReplannerManagerBase::benchmarkThread()
       }
     }
 
-    toc = ros::WallTime::now();
-    cycle_duration = (toc-tic).toSec();
+    toc = graph_time::now();
+    cycle_duration = toSeconds(toc,tic);
     if(cycle_duration>(1/freq) && display_timing_warning_)
       CNR_INFO(logger_,RESET()<<BOLDYELLOW()<<"Benchmark thread time expired: duration-> "<<cycle_duration<<RESET());
 

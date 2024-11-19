@@ -27,12 +27,13 @@ find_package(catkin REQUIRED COMPONENTS
   cnr_scene_manager_msgs
   moveit_collision_checker
   jsk_rviz_plugins
+  subscription_notifier
   )
 
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS roscpp graph_display moveit_collision_checker cnr_scene_manager_msgs jsk_rviz_plugins
+  CATKIN_DEPENDS roscpp graph_display moveit_collision_checker cnr_scene_manager_msgs jsk_rviz_plugins subscription_notifier
   DEPENDS replanners_lib trajectories_processors_lib
   )
 

@@ -14,7 +14,7 @@
 
 #include <openmore/replanners/replanner_base.h>
 #include <subscription_notifier/subscription_notifier.h> //Sostituire?
-#include <trajectories_processors_lib/trajectory_processor_base.h>
+#include <openmore/trajectories_processors/trajectory_processor_base.h>
 #include <moveit_collision_checker/collision_checkers/parallel_moveit_collision_checker.h>
 
 namespace openmore

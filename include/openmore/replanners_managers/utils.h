@@ -23,8 +23,6 @@ using namespace cnr_logger;
 using namespace graph::core;
 using namespace graph::display;
 using namespace graph::collision_check;
-using namespace trajectories_processors;
-
 using TrajectoryPtr = TrajectoryProcessorBasePtr;
 
 /**

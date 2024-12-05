@@ -124,14 +124,14 @@ void ReplannerManagerBase::attributeInitialization()
   cost_updated_                = true ;
   current_path_sync_needed_    = false;
   replanning_time_             = 0.0  ;
-  scaling_                     = 1.0  ;
+  target_scaling_              = 1.0  ;
   real_time_                   = 0.0  ;
   t_                           = 0.0  ;
   dt_                          = 1.0/double(trj_exec_thread_frequency_);
-  time_shift_                  = dt_replan_*K_OFFSET           ;
-  t_replan_                    = t_+time_shift_                ;
-  replanning_thread_frequency_ = 100                           ;
-  global_override_             = 0.0                           ;
+  time_shift_                  = dt_replan_*K_OFFSET;
+  t_replan_                    = t_+time_shift_     ;
+  replanning_thread_frequency_ = 100                ;
+  global_override_             = 0.0                ;
 
   if(group_name_.empty())
     throw std::invalid_argument("group name not set");
@@ -173,9 +173,10 @@ void ReplannerManagerBase::attributeInitialization()
   current_path_       ->setChecker(checker_replanning_);
   solver_             ->setChecker(checker_replanning_);
 
-  double scaling = scaling_from_param_;
+  target_scaling_ = scaling_from_param_;
+
   if(read_safe_scaling_)
-    scaling = scaling*readScalingTopics();
+    target_scaling_ *= readScalingTopics();
 
   // Check if trajectory_processor_ has already computed a trajectory for current_path_
   if(trajectory_processor_->getPath().empty())
@@ -210,9 +211,9 @@ void ReplannerManagerBase::attributeInitialization()
   pnt_unscaled_ = std::make_shared<TrjPoint>();
   pnt_replan_   = std::make_shared<TrjPoint>();
 
-  trajectory_processor_->interpolate(t_replan_,pnt_replan_  ,scaling            );
-  trajectory_processor_->interpolate(t_       ,pnt_         ,scaling            );
-  trajectory_processor_->interpolate(t_       ,pnt_unscaled_,scaling_from_param_);
+  trajectory_processor_->interpolate(t_       ,pnt_unscaled_,scaling_from_param_                 );
+  trajectory_processor_->interpolate(t_replan_,pnt_replan_  ,target_scaling_                     );
+  trajectory_processor_->interpolate(t_       ,pnt_         ,target_scaling_    ,updated_scaling_);
 
   Eigen::VectorXd point2project(joint_names.size());
   for(size_t i=0; i<pnt_replan_->state_->pos_.size();i++)
@@ -407,7 +408,7 @@ PathPtr ReplannerManagerBase::preprocessTrajectoryPath(const PathPtr& path)
   trj_path->removeNodes(1e-06);
   trj_path->resample(solver_->getMaxDistance()/2.0); //add more nodes to ensure better tracking
 
-  CNR_INFO(logger_,RESET()<<BG()<<"AFTER PREPROCESSING\n"<<*trj_path);
+  CNR_DEBUG(logger_,RESET()<<BG()<<"AFTER PREPROCESSING\n"<<*trj_path);
 
   return trj_path;
 }
@@ -415,7 +416,6 @@ PathPtr ReplannerManagerBase::preprocessTrajectoryPath(const PathPtr& path)
 void ReplannerManagerBase::replanningThread()
 {
   ros::WallRate lp(replanning_thread_frequency_);
-  ros::WallRate fast_lp(2000);
 
   graph_time_point tic,toc,tic_rep,toc_rep;
 
@@ -441,7 +441,7 @@ void ReplannerManagerBase::replanningThread()
     tic = graph_time::now();
 
     trj_mtx_.lock();
-    trajectory_processor_->interpolate(t_replan_,pnt_replan_,scaling_);
+    trajectory_processor_->interpolate(t_replan_,pnt_replan_,target_scaling_);
 
     for(size_t i=0; i<pnt_replan_->state_->pos_.size();i++)
       point2project(i) = pnt_replan_->state_->pos_[i];
@@ -547,8 +547,8 @@ void ReplannerManagerBase::replanningThread()
 
           CNR_INFO(logger_,RESET()<<BY()<<"trj\n"<<trajectory_processor_->getTrj());
 
-          t_ = scaling_*toSeconds(graph_time::now(),tic_current_conf_); //0.0
-          t_replan_ = t_+time_shift_*scaling_;
+          t_ = updated_scaling_*toSeconds(graph_time::now(),tic_current_conf_); //0.0
+          t_replan_ = t_+time_shift_*updated_scaling_;
 
           /*
            * Ensure that current_configuration_ is updated to reflect the new path.
@@ -556,7 +556,7 @@ void ReplannerManagerBase::replanningThread()
            * current_configuration_ might still refer to the old path. Updating it here
            * guarantees consistency with the new trajectory.
            */
-          trajectory_processor_->interpolate(t_,pnt,scaling_);
+          trajectory_processor_->interpolate(t_,pnt,target_scaling_,updated_scaling_);
 
           for(size_t i=0; i<pnt->state_->pos_.size();i++)
             point2project[i] = pnt->state_->pos_[i];
@@ -763,17 +763,17 @@ void ReplannerManagerBase::trajectoryExecutionThread()
 
     trj_mtx_.lock();
 
-    scaling_ = scaling_from_param_;
+    target_scaling_ = scaling_from_param_;
 
     if(read_safe_scaling_)
-      scaling_ = scaling_*readScalingTopics();
+      target_scaling_ *= readScalingTopics();
 
     real_time_ += dt_;
-    t_+= scaling_*dt_;
-    t_replan_ = t_+time_shift_*scaling_;
+    t_ += updated_scaling_*dt_;
+    t_replan_ = t_+time_shift_*updated_scaling_;
 
-    trajectory_processor_->interpolate(t_,pnt_         ,scaling_           );
-    trajectory_processor_->interpolate(t_,pnt_unscaled_,scaling_from_param_);
+    trajectory_processor_->interpolate(t_,pnt_unscaled_,scaling_from_param_                 );
+    trajectory_processor_->interpolate(t_,pnt_         ,target_scaling_    ,updated_scaling_);
 
     for(size_t i=0; i<pnt_->state_->pos_.size();i++)
       point2project[i] = pnt_->state_->pos_[i];
@@ -1413,7 +1413,7 @@ void ReplannerManagerBase::displayTrj(const DisplayPtr& disp)
 
   while(t<t_max)
   {
-    interpolator->interpolate(t,pnt,scaling_);
+    interpolator->interpolate(t,pnt,target_scaling_);
 
     Eigen::VectorXd conf(pnt->state_->pos_.size());
     for(size_t i=0; i<pnt->state_->pos_.size();i++)

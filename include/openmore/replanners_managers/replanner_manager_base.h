@@ -299,9 +299,14 @@ protected:
   double goal_tol_;
 
   /**
-   * @brief Current scaling factor applied to the trajectory.
+   * @brief Target scaling factor to be applied to the trajectory.
    */
-  double scaling_;
+  double target_scaling_;
+
+  /**
+   * @brief Actual scaling factor computed during the trajectory interpolation and used to follow the trajectory.
+   */
+  double updated_scaling_;
 
   /**
    * @brief Global override read by the topics specified by 'scaling_topics_names_'.

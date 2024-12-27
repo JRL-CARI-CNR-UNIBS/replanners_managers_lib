@@ -776,8 +776,6 @@ protected:
     return path_obstructed;
   }
 
-  void displayTrj(const DisplayPtr& disp);
-
   /**
    * @brief Preprocesses a trajectory path before computing the timing-law.
    *

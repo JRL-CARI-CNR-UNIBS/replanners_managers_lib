@@ -1399,33 +1399,4 @@ Eigen::Vector3d ReplannerManagerBase::forwardIk(const Eigen::VectorXd& conf, con
 
   return position;
 }
-
-void ReplannerManagerBase::displayTrj(const DisplayPtr& disp)
-{
-  TrajectoryPtr interpolator = trajectory_processor_;
-
-  double t=0;
-  double t_max = interpolator->getTrjDuration();
-
-  NodePtr node;
-  TrjPointPtr pnt;
-  std::vector<NodePtr> nodes;
-
-  while(t<t_max)
-  {
-    interpolator->interpolate(t,pnt,target_scaling_);
-
-    Eigen::VectorXd conf(pnt->state_->pos_.size());
-    for(size_t i=0; i<pnt->state_->pos_.size();i++)
-      conf(i) = pnt->state_->pos_[i];
-
-    node = std::make_shared<Node>(conf,logger_);
-    nodes.push_back(node);
-
-    t+=0.001;
-  }
-
-  PathPtr path = std::make_shared<Path>(nodes,current_path_shared_->getMetrics(),current_path_shared_->getChecker(),logger_);
-  disp->displayPath(path,"graph_display",{1,0,0,1});
-}
 }

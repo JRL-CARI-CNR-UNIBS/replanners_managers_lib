@@ -38,5 +38,5 @@ There are also additional features:
 
 ## Tutorials
 
-Visit [this tutorial](documentation/tuutorial/tutorial.md) for step-by-step instructions on using a replanner manager or integrating your custom algorithm with `replanners_managers_lib` and `replanners_lib`. 
+Visit [this tutorial](documentation/tutorial/tutorial.md) for step-by-step instructions on using a replanner manager or integrating your custom algorithm with `replanners_managers_lib` and `replanners_lib`. 
 

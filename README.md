@@ -1,6 +1,6 @@
 # replanners_managers_lib
 
-The `replanners_managers_lib` library is a core component of the [`OpenMORE`](https://github.com/JRL-CARI-CNR-UNIBS/OpenMORE.git) project. It is specifically designed to handle path replanning tasks in dynamic environments, providing the architecture necessary to manage and coordinate the execution of sampling-based replanning algorithms during robot trajectory execution.
+The `replanners_managers_lib` library is a core component of the [`OpenMORE`](https://github.com/JRL-CARI-CNR-UNIBS/OpenMORE.git) project. It is specifically designed to handle path replanning tasks in dynamic environments, providing the architecture necessary to manage and coordinate the execution of path replanning algorithms during robot trajectory execution.
 
 This library integrates is based on the other `OpenMORE` components:
 - [`replanners_lib`](https://github.com/JRL-CARI-CNR-UNIBS/replanners_lib): Defines sampling-based path replanning algorithms.
@@ -38,6 +38,5 @@ There are also additional features:
 
 ## Tutorials
 
-Visit [this tutorial](https://github.com/JRL-CARI-CNR-UNIBS/openmore_ros_example) for step-by-step instructions on using a replanner manager or integrating your custom algorithm with `replanners_managers_lib` and `replanners_lib`. 
+Visit [this tutorial](documentation/tuutorial/tutorial.md) for step-by-step instructions on using a replanner manager or integrating your custom algorithm with `replanners_managers_lib` and `replanners_lib`. 
 
-`replanners_managers_lib` mainly depends on [`replanners_lib`](https://github.com/JRL-CARI-CNR-UNIBS/replanners_lib) and [`trajectories_processors_lib`](https://github.com/JRL-CARI-CNR-UNIBS/trajectories_processors_lib), check out their documentation and tutorials.

@@ -408,8 +408,6 @@ PathPtr ReplannerManagerBase::preprocessTrajectoryPath(const PathPtr& path)
   trj_path->removeNodes(1e-06);
   trj_path->resample(solver_->getMaxDistance()/2.0); //add more nodes to ensure better tracking
 
-  CNR_DEBUG(logger_,RESET()<<BG()<<"AFTER PREPROCESSING\n"<<*trj_path);
-
   return trj_path;
 }
 
@@ -542,10 +540,6 @@ void ReplannerManagerBase::replanningThread()
 
           trajectory_processor_->setPath(trj_path->getWaypoints());
           trajectory_processor_->computeTrj(pnt_->state_);
-
-          CNR_INFO(logger_,RESET()<<BY()<<"pnt\n"<<*pnt_->state_);
-
-          CNR_INFO(logger_,RESET()<<BY()<<"trj\n"<<trajectory_processor_->getTrj());
 
           t_ = updated_scaling_*toSeconds(graph_time::now(),tic_current_conf_); //0.0
           t_replan_ = t_+time_shift_*updated_scaling_;

@@ -18,7 +18,7 @@ jobs:
   install-and-run:
     runs-on: ubuntu-20.04
     container:
-      image: ros:noetic
+      image: ros:noetic-desktop-full
 
     steps:
       - name: Setup ROS Environment

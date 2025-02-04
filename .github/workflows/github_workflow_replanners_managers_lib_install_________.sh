@@ -17,10 +17,6 @@ if [ -z "$PATH_TO_WS" ]; then
     echo "PATH: $PATH"
     echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
     echo "CMAKE_PREFIX_PATH: $CMAKE_PREFIX_PATH"
-
-    echo "PATH=$PATH_TO_WS/install/bin:$PATH" >> "$GITHUB_ENV"
-    echo "LD_LIBRARY_PATH=$PATH_TO_WS/install/lib" >> "$GITHUB_ENV"
-    echo "CMAKE_PREFIX_PATH=$PATH_TO_WS/install" >> "$GITHUB_ENV"
 fi
 
 # Install trajectories_processors_lib

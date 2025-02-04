@@ -16,22 +16,32 @@ on:
 
 jobs:
   install-and-run:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        ubuntu_version: [ubuntu-20.04, ubuntu-22.04, ubuntu-latest]
-      fail-fast: true
+    runs-on: ubuntu-20.04
+    container:
+      image: ros:noetic
 
     steps:
+      - name: Setup ROS Environment
+        shell: bash
+        run: |
+          echo "Setting up ROS environment"
+          source /opt/ros/noetic/setup.bash
+          sudo apt update
+          sudo apt install -y python3-catkin-tools
+
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Install dependencies
+        shell: bash
         run: |
           sudo apt update
-          sudo apt install -y libboost-all-dev libeigen3-dev libyaml-cpp-dev liblog4cxx-dev libgtest-dev
+          sudo apt install -y git libboost-all-dev libeigen3-dev libyaml-cpp-dev liblog4cxx-dev libgtest-dev ros-noetic-jsk-rviz-plugins python3-rosdep
 
-      - name: Build & Install trajectories_processors_lib
+      - name: Build & Install replanners_managers_lib in Catkin Workspace
+        shell: bash
         run: |
-          chmod +x .github/workflows/github_workflow_trajectories_processors_lib_install.sh 
-          .github/workflows/github_workflow_trajectories_processors_lib_install.sh
+          # Ensure the setup script is executable
+          chmod +x .github/workflows/github_workflow_replanners_managers_lib.sh 
+          # Run the installation script
+          .github/workflows/github_workflow_replanners_managers_lib_install.sh

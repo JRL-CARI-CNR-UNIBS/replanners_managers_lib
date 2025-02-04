@@ -220,7 +220,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
             assert(not tree->isInTree(old_current_node_));
           }
 
-          CNR_INFO(logger_,RESET()<<BC()<<"OLD CURRENT NODE REMOVED");
+          CNR_DEBUG(logger_,RESET()<<BC()<<"OLD CURRENT NODE REMOVED");
         }
       }
     }
@@ -278,7 +278,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
     if(distance==0)
     {
-      CNR_INFO(logger_,RESET()<<BC()<<"DISTANCE ZERO");
+      CNR_DEBUG(logger_,RESET()<<BC()<<"DISTANCE ZERO");
 
 
       if(node_replan != current_node)
@@ -287,23 +287,23 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     else if(distance<0) //replan node before current node on current path
     {
 
-      CNR_INFO(logger_,RESET()<<BC()<<"DISTANCE <0");
+      CNR_DEBUG(logger_,RESET()<<BC()<<"DISTANCE <0");
 
       size_t idx;
       ConnectionPtr current_conn = replanned_path->findConnection(configuration,idx,true);
       if(current_conn != nullptr) //current node is on replanned path
       {
-        CNR_INFO(logger_,RESET()<<BC()<<"\t -> CASE 1");
+        CNR_DEBUG(logger_,RESET()<<BC()<<"\t -> CASE 1");
 
         if(current_conn->getParent() == current_node || current_conn->getChild() == current_node)
         {
-          CNR_INFO(logger_,RESET()<<BC()<<"\t -> CASE 1.1");
+          CNR_DEBUG(logger_,RESET()<<BC()<<"\t -> CASE 1.1");
 
           replanned_path->setConnections(replanned_path->getSubpathFromNode(current_node)->getConnections());
         }
         else
         {
-          CNR_INFO(logger_,RESET()<<BC()<<"\t -> CASE 1.2");
+          CNR_DEBUG(logger_,RESET()<<BC()<<"\t -> CASE 1.2");
 
           if(conn != current_conn)
           {
@@ -336,14 +336,14 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
           if(not replanned_path->splitConnection(current_path->getConnectionsConst().at(conn_idx),
                                                  current_path->getConnectionsConst().at(conn_idx+1),current_conn))
-            CNR_INFO(logger_,RESET()<<BOLDBLUE()<<"CONNECTION NOT SPLITTED"<<RESET());
+            CNR_DEBUG(logger_,RESET()<<BOLDBLUE()<<"CONNECTION NOT SPLITTED"<<RESET());
 
           replanned_path->setConnections(replanned_path->getSubpathFromNode(current_node)->getConnections());
         }
       }
       else
       {
-        CNR_INFO(logger_,RESET()<<BC()<<"\t -> CASE 2");
+        CNR_DEBUG(logger_,RESET()<<BC()<<"\t -> CASE 2");
 
         //current node should be very close to replan node, minimal difference between the connections
 
@@ -366,7 +366,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     }
     else //distance>0 //replan node after current node on current path
     {
-      CNR_INFO(logger_,RESET()<<BC()<<"DISTANCE > 0");
+      CNR_DEBUG(logger_,RESET()<<BC()<<"DISTANCE > 0");
 
       assert(current_node != node_replan);
       assert((current_node->getConfiguration()-node_replan->getConfiguration()).norm()>TOLERANCE);
@@ -390,7 +390,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
       new_conns.insert(new_conns.end(),replanned_path->getConnectionsConst().begin(),replanned_path->getConnectionsConst().end());
       replanned_path->setConnections(new_conns);
 
-      CNR_INFO(logger_,RESET()<<BC()<<"NEW PATH\n"<<*replanned_path);
+      CNR_DEBUG(logger_,RESET()<<BC()<<"NEW PATH\n"<<*replanned_path);
 
 
       if(old_current_node_ != nullptr)

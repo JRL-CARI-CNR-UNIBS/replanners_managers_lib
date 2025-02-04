@@ -44,7 +44,7 @@ namespace openmore
 class ReplannerManagerMARS;
 typedef std::shared_ptr<ReplannerManagerMARS> ReplannerManagerMARSPtr;
 
-class ReplannerManagerMARS: public ReplannerManagerBase
+class ReplannerManagerMARS : public ReplannerManagerBase
 {
 protected:
   bool full_net_search_;
@@ -77,19 +77,11 @@ protected:
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  ReplannerManagerMARS(const PathPtr &current_path,
-                       const TrajectoryPtr& trajectory_processor,
-                       const TreeSolverPtr &solver,
-                       const std::string &param_ns,
+  ReplannerManagerMARS(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver, const std::string& param_ns,
                        const TraceLoggerPtr& logger);
 
-  ReplannerManagerMARS(const PathPtr &current_path,
-                       const TrajectoryPtr& trajectory_processor,
-                       const TreeSolverPtr &solver,
-                       const std::string &param_ns,
-                       const TraceLoggerPtr& logger,
-                       const std::vector<PathPtr> &other_paths);
-
+  ReplannerManagerMARS(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver, const std::string& param_ns,
+                       const TraceLoggerPtr& logger, const std::vector<PathPtr>& other_paths);
 
   virtual void setOtherPaths(const std::vector<PathPtr>& other_paths)
   {
@@ -99,4 +91,4 @@ public:
   virtual void startReplannedPathFromNewCurrentConf(const Eigen::VectorXd& configuration) override;
 };
 
-}
+}  // namespace openmore

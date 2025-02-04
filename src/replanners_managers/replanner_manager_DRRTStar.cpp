@@ -37,17 +37,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace openmore
 {
-ReplannerManagerDRRTStar::ReplannerManagerDRRTStar(const PathPtr &current_path,
-                                                   const TrajectoryPtr& trajectory_processor,
-                                                   const TreeSolverPtr &solver,
-                                                   const std::string &param_ns,
-                                                   const TraceLoggerPtr& logger):
-  ReplannerManagerBase(current_path,trajectory_processor,solver,param_ns,logger)
+ReplannerManagerDRRTStar::ReplannerManagerDRRTStar(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver,
+                                                   const std::string& param_ns, const TraceLoggerPtr& logger)
+  : ReplannerManagerBase(current_path, trajectory_processor, solver, param_ns, logger)
 {
-  RRTStarPtr tmp_solver = std::make_shared<RRTStar>(solver_->getMetrics(), checker_replanning_, solver_->getSampler(),logger_);
+  RRTStarPtr tmp_solver = std::make_shared<RRTStar>(solver_->getMetrics(), checker_replanning_, solver_->getSampler(), logger_);
   tmp_solver->importFromSolver(solver);
 
-  solver_  = tmp_solver;
+  solver_ = tmp_solver;
 }
 
 void ReplannerManagerDRRTStar::startReplannedPathFromNewCurrentConf(const Eigen::VectorXd& configuration)
@@ -57,51 +54,51 @@ void ReplannerManagerDRRTStar::startReplannedPathFromNewCurrentConf(const Eigen:
   TreePtr tree = current_path->getTree();
 
   bool was_a_new_node;
-  if(not old_current_node_)
+  if (not old_current_node_)
     was_a_new_node = false;
   else
     was_a_new_node = is_a_new_node_;
 
-  if(not tree->changeRoot(current_path->getStartNode()))
+  if (not tree->changeRoot(current_path->getStartNode()))
     throw std::runtime_error("root can not be changed");
 
   NodePtr current_node;
   ConnectionPtr conn = current_path->findConnection(configuration);
 
-  if(conn->isValid())
-    current_node = current_path->addNodeAtCurrentConfig(configuration,conn,true,is_a_new_node_);
-  else  //if the conn of current conf is the conn before the replan goal, it is not valid
+  if (conn->isValid())
+    current_node = current_path->addNodeAtCurrentConfig(configuration, conn, true, is_a_new_node_);
+  else  // if the conn of current conf is the conn before the replan goal, it is not valid
   {
     assert(conn->getParent() != nullptr && conn->getParent() != nullptr);
 
-    current_node = current_path->addNodeAtCurrentConfig(configuration,conn,false);
-    conn = std::make_shared<Connection>(conn->getParent(),current_node,logger_);
-    conn->setCost(tree->getMetrics()->cost(conn->getParent(),current_node));
+    current_node = current_path->addNodeAtCurrentConfig(configuration, conn, false);
+    conn = std::make_shared<Connection>(conn->getParent(), current_node, logger_);
+    conn->setCost(tree->getMetrics()->cost(conn->getParent(), current_node));
     conn->add();
 
     tree->addNode(current_node);
   }
 
-  if(not tree->changeRoot(current_node))
+  if (not tree->changeRoot(current_node))
     throw std::runtime_error("root can not be changed");
 
-  if(old_current_node_ && old_current_node_ != tree->getRoot()) //remove old current node before computing new path
+  if (old_current_node_ && old_current_node_ != tree->getRoot())  // remove old current node before computing new path
   {
-    if(was_a_new_node)
+    if (was_a_new_node)
     {
-      if((old_current_node_->getParentConnectionsSize() + old_current_node_->getChildConnectionsSize()) == 2)
+      if ((old_current_node_->getParentConnectionsSize() + old_current_node_->getChildConnectionsSize()) == 2)
       {
         ConnectionPtr parent_conn = old_current_node_->getParentConnections().front();
-        ConnectionPtr child_conn  = old_current_node_->getChildConnections().front();
+        ConnectionPtr child_conn = old_current_node_->getChildConnections().front();
 
-        if(parent_conn->isParallel(child_conn))
+        if (parent_conn->isParallel(child_conn))
         {
           NodePtr parent = parent_conn->getParent();
           NodePtr child = child_conn->getChild();
 
-          double restored_cost = parent_conn->getCost()+child_conn->getCost();
+          double restored_cost = parent_conn->getCost() + child_conn->getCost();
 
-          ConnectionPtr restored_conn = std::make_shared<Connection>(parent,child,logger_);
+          ConnectionPtr restored_conn = std::make_shared<Connection>(parent, child, logger_);
           restored_conn->setCost(restored_cost);
           restored_conn->add();
 
@@ -124,8 +121,8 @@ bool ReplannerManagerDRRTStar::haveToReplan(const bool path_obstructed)
 
 void ReplannerManagerDRRTStar::initReplanner()
 {
-  double time_for_repl = 0.9*dt_replan_;
-  replanner_ = std::make_shared<DynamicRRTStar>(configuration_replan_,current_path_,time_for_repl,solver_,logger_);
+  double time_for_repl = 0.9 * dt_replan_;
+  replanner_ = std::make_shared<DynamicRRTStar>(configuration_replan_, current_path_, time_for_repl, solver_, logger_);
 }
 
-}
+}  // namespace openmore

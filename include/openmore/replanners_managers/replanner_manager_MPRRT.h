@@ -44,7 +44,7 @@ namespace openmore
 class ReplannerManagerMPRRT;
 typedef std::shared_ptr<ReplannerManagerMPRRT> ReplannerManagerMPRRTPtr;
 
-class ReplannerManagerMPRRT: public ReplannerManagerBase
+class ReplannerManagerMPRRT : public ReplannerManagerBase
 {
 protected:
   PathLocalOptimizerPtr path_optimizer_;
@@ -59,13 +59,10 @@ protected:
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  ReplannerManagerMPRRT(const PathPtr &current_path,
-                        const TrajectoryPtr& trajectory_processor,
-                        const TreeSolverPtr &solver,
-                        const std::string &param_ns,
+  ReplannerManagerMPRRT(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver, const std::string& param_ns,
                         const TraceLoggerPtr& logger);
 
-  void startReplannedPathFromNewCurrentConf(const Eigen::VectorXd &configuration) override;
+  void startReplannedPathFromNewCurrentConf(const Eigen::VectorXd& configuration) override;
 };
 
-}
+}  // namespace openmore

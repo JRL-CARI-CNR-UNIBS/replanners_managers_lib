@@ -50,7 +50,7 @@ typedef std::shared_ptr<ReplannerManagerBase> ReplannerManagerBasePtr;
  * Additionally, it includes threads for benchmarking the replanning algorithms and for spawning virtual obstacles to simulate dynamic environments.
  * The class is deeply integrated with ROS, utilizing ROS topics and services, and leverages MoveIt for managing the planning scene.
  */
-class ReplannerManagerBase: public std::enable_shared_from_this<ReplannerManagerBase>
+class ReplannerManagerBase : public std::enable_shared_from_this<ReplannerManagerBase>
 {
   /*
    * The replanning configuration is adjusted relative to the robot's current configuration
@@ -59,7 +59,6 @@ class ReplannerManagerBase: public std::enable_shared_from_this<ReplannerManager
 #define K_OFFSET 1.1
 
 protected:
-
   /* To be assigned by the constructor */
 
   /**
@@ -724,7 +723,8 @@ protected:
    * @return The calculated position.
    */
   Eigen::Vector3d forwardIk(const Eigen::VectorXd& conf, const std::string& last_link, const planning_scene::PlanningScenePtr& planning_scene);
-  Eigen::Vector3d forwardIk(const Eigen::VectorXd& conf, const std::string& last_link, const planning_scene::PlanningScenePtr& planning_scene, geometry_msgs::Pose &pose);
+  Eigen::Vector3d forwardIk(const Eigen::VectorXd& conf, const std::string& last_link, const planning_scene::PlanningScenePtr& planning_scene,
+                            geometry_msgs::Pose& pose);
 
   /**
    * @brief Pure virtual function to initialize the replanner.
@@ -733,7 +733,7 @@ protected:
    * to handle dynamic replanning based on the current configuration and path.
    * Derived classes must implement this method to define their specific replanner initialization.
    */
-  virtual void initReplanner()=0;
+  virtual void initReplanner() = 0;
 
   /**
    * @brief Pure virtual function to determine if replanning is required.
@@ -747,7 +747,7 @@ protected:
    * @param path_obstructed A boolean indicating whether the current path is blocked or obstructed.
    * @return True if replanning is necessary, otherwise false.
    */
-  virtual bool haveToReplan(const bool path_obstructed)=0;
+  virtual bool haveToReplan(const bool path_obstructed) = 0;
 
   /**
    * @brief Always triggers replanning.
@@ -823,10 +823,7 @@ public:
    * @param param_ns The namespace for parameters.
    * @param logger The logger to be used.
    */
-  ReplannerManagerBase(const PathPtr &current_path,
-                       const TrajectoryPtr& trajectory_processor,
-                       const TreeSolverPtr &solver,
-                       const std::string &param_ns,
+  ReplannerManagerBase(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver, const std::string& param_ns,
                        const TraceLoggerPtr& logger);
 
   /**
@@ -980,4 +977,4 @@ public:
   virtual void startReplannedPathFromNewCurrentConf(const Eigen::VectorXd& configuration) = 0;
 };
 
-}
+}  // namespace openmore

@@ -37,18 +37,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace openmore
 {
-
-ReplannerManagerDRRT::ReplannerManagerDRRT(const PathPtr &current_path,
-                                           const TrajectoryPtr& trajectory_processor,
-                                           const TreeSolverPtr &solver,
-                                           const std::string &param_ns,
-                                           const TraceLoggerPtr& logger):
-  ReplannerManagerBase(current_path,trajectory_processor,solver,param_ns,logger)
+ReplannerManagerDRRT::ReplannerManagerDRRT(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver,
+                                           const std::string& param_ns, const TraceLoggerPtr& logger)
+  : ReplannerManagerBase(current_path, trajectory_processor, solver, param_ns, logger)
 {
   RRTPtr tmp_solver = std::make_shared<RRT>(solver_->getMetrics(), checker_replanning_, solver_->getSampler(), logger_);
   tmp_solver->importFromSolver(solver);
 
-  solver_  = tmp_solver;
+  solver_ = tmp_solver;
 }
 
 void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::VectorXd& configuration)
@@ -68,10 +64,10 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
   assert(goal == replanner_->getGoal());
   assert(tree->isInTree(replanned_path_start));
 
-  //If the configuration matches to a node of the replanned path
-  for(const NodePtr& node:replanned_path->getNodes())
+  // If the configuration matches to a node of the replanned path
+  for (const NodePtr& node : replanned_path->getNodes())
   {
-    if((node->getConfiguration()-configuration).norm()<TOLERANCE)
+    if ((node->getConfiguration() - configuration).norm() < TOLERANCE)
     {
       assert(node->getConfiguration() != replanned_path->getWaypoints().back());
       assert(tree->isInTree(node));
@@ -84,47 +80,48 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     }
   }
 
-  //Otherwise, if the configuration does not match to any path node..
+  // Otherwise, if the configuration does not match to any path node..
   NodePtr current_node;
   PathPtr new_tree_branch;
   size_t idx_current_conf, idx_replanned_path_start;
 
-  double abscissa_current_conf = current_path_copy->curvilinearAbscissaOfPoint(configuration,idx_current_conf);
-  double abscissa_replanned_path_start = current_path_copy->curvilinearAbscissaOfPoint(replanned_path_start->getConfiguration(),idx_replanned_path_start);
+  double abscissa_current_conf = current_path_copy->curvilinearAbscissaOfPoint(configuration, idx_current_conf);
+  double abscissa_replanned_path_start = current_path_copy->curvilinearAbscissaOfPoint(replanned_path_start->getConfiguration(), idx_replanned_path_start);
 
   assert(abscissa_current_conf != abscissa_replanned_path_start);
 
-  if(abscissa_current_conf < abscissa_replanned_path_start)
+  if (abscissa_current_conf < abscissa_replanned_path_start)
   {
     try
     {
-      new_tree_branch = current_path_copy->getSubpathToConf(replanned_path_start->getConfiguration(),false);
+      new_tree_branch = current_path_copy->getSubpathToConf(replanned_path_start->getConfiguration(), false);
     }
-    catch(...)
+    catch (...)
     {
-      CNR_DEBUG(logger_,"replanned_path_start conf:  "<<replanned_path_start->getConfiguration().transpose());
-      for(const Eigen::VectorXd& wp:current_path_copy->getWaypoints())
-        CNR_DEBUG(logger_,"CURRENT PATH COPY WP: "<<wp.transpose());
+      CNR_DEBUG(logger_, "replanned_path_start conf:  " << replanned_path_start->getConfiguration().transpose());
+      for (const Eigen::VectorXd& wp : current_path_copy->getWaypoints())
+        CNR_DEBUG(logger_, "CURRENT PATH COPY WP: " << wp.transpose());
     }
 
-    new_tree_branch = new_tree_branch->getSubpathFromConf(configuration,false);
-    new_tree_branch = new_tree_branch->clone(); //if you not clone, you flip only a part of current_path_copy and this crates nodes with more than one parent and nodes with zero parents
+    new_tree_branch = new_tree_branch->getSubpathFromConf(configuration, false);
+    new_tree_branch = new_tree_branch->clone();  // if you not clone, you flip only a part of current_path_copy and this crates nodes with more than one parent
+                                                 // and nodes with zero parents
     new_tree_branch->flip();
 
     std::vector<ConnectionPtr> new_tree_branch_connections = new_tree_branch->getConnections();
     current_node = new_tree_branch_connections.back()->getChild();
-    assert([&]{
-      if((current_node->getConfiguration()-configuration).norm()<1e-06)
+    assert([&] {
+      if ((current_node->getConfiguration() - configuration).norm() < 1e-06)
         return true;
 
-      CNR_ERROR(logger_,"\ncurrent_node conf: "<<current_node->getConfiguration().transpose()<<"\nconfiguration: "<<configuration.transpose());
+      CNR_ERROR(logger_, "\ncurrent_node conf: " << current_node->getConfiguration().transpose() << "\nconfiguration: " << configuration.transpose());
       return false;
     }());
 
     ConnectionPtr conn2delete = new_tree_branch_connections.at(0);
     NodePtr child = conn2delete->getChild();
 
-    ConnectionPtr new_conn = std::make_shared<Connection>(replanned_path_start,child,logger_);
+    ConnectionPtr new_conn = std::make_shared<Connection>(replanned_path_start, child, logger_);
     new_conn->setCost(conn2delete->getCost());
     new_conn->add();
 
@@ -132,13 +129,13 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
     new_tree_branch_connections.at(0) = new_conn;
 
-    if(not tree->addBranch(new_tree_branch_connections))
-      CNR_ERROR(logger_,"Branch from current node not added to the replanned tree");
+    if (not tree->addBranch(new_tree_branch_connections))
+      CNR_ERROR(logger_, "Branch from current node not added to the replanned tree");
 
     assert(tree->isInTree(current_node));
 
-    if(not tree->changeRoot(current_node))
-      CNR_ERROR(logger_,"Root can't be changed to current node");
+    if (not tree->changeRoot(current_node))
+      CNR_ERROR(logger_, "Root can't be changed to current node");
 
     path_connections = tree->getConnectionToNode(goal);
     replanned_path->setConnections(path_connections);
@@ -151,23 +148,22 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     ConnectionPtr conn;
     size_t idx_current_conf_on_replanned;
 
-    ConnectionPtr conn_on_replannned_path = replanned_path->findConnection(configuration,idx_current_conf_on_replanned);
-    if(conn_on_replannned_path)
+    ConnectionPtr conn_on_replannned_path = replanned_path->findConnection(configuration, idx_current_conf_on_replanned);
+    if (conn_on_replannned_path)
     {
       current_node = std::make_shared<Node>(configuration);
 
       NodePtr child = replanned_path->getConnections().at(idx_current_conf_on_replanned)->getChild();
-      conn = std::make_shared<Connection>(child,current_node,logger_);
+      conn = std::make_shared<Connection>(child, current_node, logger_);
 
       MetricsPtr metrics = solver_->getMetrics();
-      if(replanned_path->getConnections().at(idx_current_conf_on_replanned)->getCost() == std::numeric_limits<double>::infinity())
+      if (replanned_path->getConnections().at(idx_current_conf_on_replanned)->getCost() == std::numeric_limits<double>::infinity())
       {
-        checker_replanning_->checkConnection(conn)?
-              (cost = metrics->cost(child->getConfiguration(),configuration)):
-              (cost = std::numeric_limits<double>::infinity());
+        checker_replanning_->checkConnection(conn) ? (cost = metrics->cost(child->getConfiguration(), configuration)) :
+                                                     (cost = std::numeric_limits<double>::infinity());
       }
       else
-        cost = metrics->cost(child->getConfiguration(),configuration);
+        cost = metrics->cost(child->getConfiguration(), configuration);
 
       conn->setCost(cost);
       conn->add();
@@ -175,8 +171,8 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
       tree->addNode(current_node);
       assert(tree->isInTree(current_node));
 
-      if(not tree->changeRoot(current_node))
-        CNR_ERROR(logger_,"Root can't be changed to current node");
+      if (not tree->changeRoot(current_node))
+        CNR_ERROR(logger_, "Root can't be changed to current node");
 
       path_connections = tree->getConnectionToNode(goal);
       replanned_path->setConnections(path_connections);
@@ -185,33 +181,33 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     }
     else
     {
-      CNR_DEBUG(logger_,"no conn");
+      CNR_DEBUG(logger_, "no conn");
       try
       {
-        new_tree_branch = current_path_copy->getSubpathToConf(configuration,false);
+        new_tree_branch = current_path_copy->getSubpathToConf(configuration, false);
       }
-      catch(...)
+      catch (...)
       {
-        CNR_DEBUG(logger_,"rconfiguration:  "<<configuration.transpose());
-        for(const Eigen::VectorXd& wp:current_path_copy->getWaypoints())
-          CNR_DEBUG(logger_,"CURRENT PATH COPY WP: "<<wp.transpose());
+        CNR_DEBUG(logger_, "rconfiguration:  " << configuration.transpose());
+        for (const Eigen::VectorXd& wp : current_path_copy->getWaypoints())
+          CNR_DEBUG(logger_, "CURRENT PATH COPY WP: " << wp.transpose());
       }
 
-      new_tree_branch = new_tree_branch->getSubpathFromConf(replanned_path_start->getConfiguration(),false);
+      new_tree_branch = new_tree_branch->getSubpathFromConf(replanned_path_start->getConfiguration(), false);
 
       std::vector<ConnectionPtr> new_tree_branch_connections = new_tree_branch->getConnections();
 
-      //Delete redundant connections
+      // Delete redundant connections
       bool delete_conn = false;
       int idx = 0;
 
       std::vector<ConnectionPtr> replanned_path_conns = replanned_path->getConnections();
-      for(unsigned int i=0;i<new_tree_branch_connections.size();i++)
+      for (unsigned int i = 0; i < new_tree_branch_connections.size(); i++)
       {
-        bool match = (new_tree_branch_connections.at(i)->getChild()->getConfiguration()
-                      - replanned_path_conns.at(i)->getChild()->getConfiguration()).norm()<1e-06;
+        bool match =
+            (new_tree_branch_connections.at(i)->getChild()->getConfiguration() - replanned_path_conns.at(i)->getChild()->getConfiguration()).norm() < 1e-06;
 
-        if(match)
+        if (match)
         {
           idx = i;
           delete_conn = true;
@@ -221,17 +217,18 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
       }
 
       ConnectionPtr new_conn;
-      if(delete_conn)
+      if (delete_conn)
       {
-        int size_branch = new_tree_branch_connections.size()-(idx+1);
-        new_tree_branch_connections.insert(new_tree_branch_connections.begin(),new_tree_branch_connections.begin()+(idx+1),new_tree_branch_connections.end());
+        int size_branch = new_tree_branch_connections.size() - (idx + 1);
+        new_tree_branch_connections.insert(new_tree_branch_connections.begin(), new_tree_branch_connections.begin() + (idx + 1),
+                                           new_tree_branch_connections.end());
         new_tree_branch_connections.resize(size_branch);
 
         ConnectionPtr conn2delete = new_tree_branch_connections.at(0);
         NodePtr parent = replanned_path->getConnections().at(idx)->getChild();
         NodePtr child = conn2delete->getChild();
 
-        new_conn = std::make_shared<Connection>(parent,child,logger_);
+        new_conn = std::make_shared<Connection>(parent, child, logger_);
         new_conn->setCost(conn2delete->getCost());
         new_conn->add();
 
@@ -242,7 +239,7 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
         ConnectionPtr conn2delete = new_tree_branch_connections.at(0);
         NodePtr child = conn2delete->getChild();
 
-        new_conn = std::make_shared<Connection>(replanned_path_start,child,logger_);
+        new_conn = std::make_shared<Connection>(replanned_path_start, child, logger_);
         new_conn->setCost(conn2delete->getCost());
         new_conn->add();
 
@@ -253,12 +250,12 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
       current_node = new_tree_branch_connections.back()->getChild();
 
-      if(not tree->addBranch(new_tree_branch_connections))
-        CNR_ERROR(logger_,"Branch from current node not added to the replanned tree");
+      if (not tree->addBranch(new_tree_branch_connections))
+        CNR_ERROR(logger_, "Branch from current node not added to the replanned tree");
 
       assert(tree->isInTree(current_node));
-      if(not tree->changeRoot(current_node))
-        CNR_ERROR(logger_,"Root can't be changed to current node");
+      if (not tree->changeRoot(current_node))
+        CNR_ERROR(logger_, "Root can't be changed to current node");
 
       path_connections = tree->getConnectionToNode(goal);
       replanned_path->setConnections(path_connections);
@@ -275,8 +272,8 @@ bool ReplannerManagerDRRT::haveToReplan(const bool path_obstructed)
 
 void ReplannerManagerDRRT::initReplanner()
 {
-  double time_for_repl = 0.9*dt_replan_;
+  double time_for_repl = 0.9 * dt_replan_;
   replanner_ = std::make_shared<DynamicRRT>(configuration_replan_, current_path_, time_for_repl, solver_, logger_);
 }
 
-}
+}  // namespace openmore

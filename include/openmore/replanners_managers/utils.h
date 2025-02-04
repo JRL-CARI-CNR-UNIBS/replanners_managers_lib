@@ -48,7 +48,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cnr_scene_manager_msgs/RemoveObjects.h>
 
 #include <openmore/replanners/replanner_base.h>
-#include <subscription_notifier/subscription_notifier.h> //remove?
+#include <subscription_notifier/subscription_notifier.h>  //remove?
 #include <openmore/trajectories_processors/trajectory_processor_base.h>
 #include <moveit_collision_checker/collision_checkers/parallel_moveit_collision_checker.h>
 
@@ -67,12 +67,11 @@ using TrajectoryPtr = TrajectoryProcessorBasePtr;
  * @param group_name the name of the robot group to be considered.
  * @return the corresponding moveit::core::RobotState
  */
-inline moveit::core::RobotState fromWaypoint2State(const Eigen::VectorXd& waypoint,
-                                                   const planning_scene::PlanningScenePtr& planning_scene,
+inline moveit::core::RobotState fromWaypoint2State(const Eigen::VectorXd& waypoint, const planning_scene::PlanningScenePtr& planning_scene,
                                                    const std::string& group_name)
 {
-  moveit::core::RobotState state=planning_scene->getCurrentState();
-  state.setJointGroupPositions(group_name,waypoint);
+  moveit::core::RobotState state = planning_scene->getCurrentState();
+  state.setJointGroupPositions(group_name, waypoint);
   state.update();
 
   return state;
@@ -86,22 +85,18 @@ inline moveit::core::RobotState fromWaypoint2State(const Eigen::VectorXd& waypoi
  * @param states the corresponding moveit::core::RobotState
  * @return true if successfull
  */
-inline bool fromWaypoints2States(const std::vector<Eigen::VectorXd>& waypoints,
-                                 const planning_scene::PlanningScenePtr& planning_scene,
-                                 const std::string& group_name,
-                                 std::vector<moveit::core::RobotState>& states)
+inline bool fromWaypoints2States(const std::vector<Eigen::VectorXd>& waypoints, const planning_scene::PlanningScenePtr& planning_scene,
+                                 const std::string& group_name, std::vector<moveit::core::RobotState>& states)
 {
   states.clear();
   states.reserve(waypoints.size());
 
-  for(const auto& waypoint: waypoints)
+  for (const auto& waypoint : waypoints)
   {
-    auto state = fromWaypoint2State(waypoint,planning_scene,group_name);
+    auto state = fromWaypoint2State(waypoint, planning_scene, group_name);
     states.push_back(state);
   }
 
   return true;
 }
-}
-
-
+}  // namespace openmore

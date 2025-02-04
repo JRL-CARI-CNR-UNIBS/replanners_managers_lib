@@ -43,7 +43,7 @@ namespace openmore
 class ReplannerManagerDRRTStar;
 typedef std::shared_ptr<ReplannerManagerDRRTStar> ReplannerManagerDRRTStarPtr;
 
-class ReplannerManagerDRRTStar: public ReplannerManagerBase
+class ReplannerManagerDRRTStar : public ReplannerManagerBase
 {
 protected:
   NodePtr old_current_node_ = nullptr;
@@ -55,13 +55,10 @@ protected:
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  ReplannerManagerDRRTStar(const PathPtr &current_path,
-                           const TrajectoryPtr& trajectory_processor,
-                           const TreeSolverPtr &solver,
-                           const std::string &param_ns,
+  ReplannerManagerDRRTStar(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver, const std::string& param_ns,
                            const TraceLoggerPtr& logger);
 
-  void startReplannedPathFromNewCurrentConf(const Eigen::VectorXd &configuration) override;
+  void startReplannedPathFromNewCurrentConf(const Eigen::VectorXd& configuration) override;
 };
 
-}
+}  // namespace openmore

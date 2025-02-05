@@ -41,7 +41,9 @@ catkin config --install
 rosdep update
 rosdep install --from-paths src --ignore-src -r -y
 
-catkin build --verbose -cs
+echo "Building.."
+catkin build -cs
+echo "Successfully built the ws!"
 
 # Source the workspace setup
 echo "Sourcing workspace setup"

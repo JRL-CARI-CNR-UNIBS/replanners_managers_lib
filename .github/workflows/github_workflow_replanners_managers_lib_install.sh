@@ -15,9 +15,10 @@ mkdir -p $SRC_DIR
 cd $WORKSPACE_DIR
 
 # Clone deps into the src folder 
-cd $SRC_DIRc
+cd $SRC_DIR
 
 echo "Cloning repositories into $SRC_DIR"
+git clone --recurse-submodules https://github.com/JRL-CARI-CNR-UNIBS/cnr_common.git 
 git clone https://github.com/JRL-CARI-CNR-UNIBS/graph_core.git
 git clone https://github.com/JRL-CARI-CNR-UNIBS/graph_display.git
 git clone https://github.com/JRL-CARI-CNR-UNIBS/moveit_collision_checker.git 
@@ -31,6 +32,8 @@ git clone https://github.com/JRL-CARI-CNR-UNIBS/replanners_lib.git
 git clone https://github.com/JRL-CARI-CNR-UNIBS/trajectories_processors_lib.git 
 git clone https://github.com/JRL-CARI-CNR-UNIBS/replanners_managers_lib.git 
 
+cd cnr_common && . update_submodules.sh
+
 # Build the workspace
 cd $WORKSPACE_DIR
 echo "Building the Catkin workspace"
@@ -38,9 +41,12 @@ catkin init
 catkin config --extend /opt/ros/noetic
 catkin config --install
 
+rosdep update
 rosdep install --from-paths src --ignore-src -r -y
 
-catkin build --verbose -cs
+echo "Building.."
+catkin build -cs
+echo "Successfully built the ws!"
 
 # Source the workspace setup
 echo "Sourcing workspace setup"

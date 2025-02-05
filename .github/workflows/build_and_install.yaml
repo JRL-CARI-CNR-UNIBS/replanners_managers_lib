@@ -18,7 +18,7 @@ jobs:
   install-and-run:
     runs-on: ubuntu-20.04
     container:
-      image: ros:noetic
+      image: osrf/ros:noetic-desktop-full
 
     steps:
       - name: Setup ROS Environment
@@ -42,6 +42,6 @@ jobs:
         shell: bash
         run: |
           # Ensure the setup script is executable
-          chmod +x .github/workflows/github_workflow_replanners_managers_lib.sh 
+          chmod +x .github/workflows/github_workflow_replanners_managers_lib_install.sh 
           # Run the installation script
           .github/workflows/github_workflow_replanners_managers_lib_install.sh

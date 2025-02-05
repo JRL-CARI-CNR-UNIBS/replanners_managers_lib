@@ -15,7 +15,7 @@ mkdir -p $SRC_DIR
 cd $WORKSPACE_DIR
 
 # Clone deps into the src folder 
-cd $SRC_DIRc
+cd $SRC_DIR
 
 echo "Cloning repositories into $SRC_DIR"
 git clone https://github.com/JRL-CARI-CNR-UNIBS/graph_core.git

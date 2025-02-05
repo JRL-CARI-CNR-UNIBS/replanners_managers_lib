@@ -38,6 +38,7 @@ catkin init
 catkin config --extend /opt/ros/noetic
 catkin config --install
 
+rosdep update
 rosdep install --from-paths src --ignore-src -r -y
 
 catkin build --verbose -cs

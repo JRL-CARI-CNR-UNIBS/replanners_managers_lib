@@ -32,6 +32,8 @@ git clone https://github.com/JRL-CARI-CNR-UNIBS/replanners_lib.git
 git clone https://github.com/JRL-CARI-CNR-UNIBS/trajectories_processors_lib.git 
 git clone https://github.com/JRL-CARI-CNR-UNIBS/replanners_managers_lib.git 
 
+cd cnr_common && . update_submodules.sh
+
 # Build the workspace
 cd $WORKSPACE_DIR
 echo "Building the Catkin workspace"

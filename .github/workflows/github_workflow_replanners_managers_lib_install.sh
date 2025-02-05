@@ -18,6 +18,7 @@ cd $WORKSPACE_DIR
 cd $SRC_DIR
 
 echo "Cloning repositories into $SRC_DIR"
+git clone --recurse-submodules https://github.com/JRL-CARI-CNR-UNIBS/cnr_common.git 
 git clone https://github.com/JRL-CARI-CNR-UNIBS/graph_core.git
 git clone https://github.com/JRL-CARI-CNR-UNIBS/graph_display.git
 git clone https://github.com/JRL-CARI-CNR-UNIBS/moveit_collision_checker.git 

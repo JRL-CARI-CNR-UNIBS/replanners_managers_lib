@@ -1,4 +1,8 @@
 # replanners_managers_lib
+[![build](https://github.com/JRL-CARI-CNR-UNIBS/replanners_managers_lib/actions/workflows/build_and_install.yaml/badge.svg)](https://github.com/JRL-CARI-CNR-UNIBS/replanners_managers_lib/actions/workflows/build_and_install.yaml)
+[![clang-format](https://github.com/JRL-CARI-CNR-UNIBS/replanners_managers_lib/actions/workflows/clang-format.yaml/badge.svg)](https://github.com/JRL-CARI-CNR-UNIBS/replanners_managers_lib/actions/workflows/clang-format.yaml)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/e06a1a674ce8489c84853a3380f302b3)](https://app.codacy.com/gh/JRL-CARI-CNR-UNIBS/replanners_managers_lib/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+![Status](https://img.shields.io/badge/License-BSD3-green)
 
 The `replanners_managers_lib` library is a core component of the [`OpenMORE`](https://github.com/JRL-CARI-CNR-UNIBS/OpenMORE.git) project. It is specifically designed to handle path replanning tasks in dynamic environments, providing the architecture necessary to manage and coordinate the execution of path replanning algorithms during robot trajectory execution.
 

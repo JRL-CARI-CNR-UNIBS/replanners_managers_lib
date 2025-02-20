@@ -21,27 +21,50 @@ jobs:
       image: ros:noetic
 
     steps:
-      - name: Setup ROS Environment
-        shell: bash
-        run: |
-          echo "Setting up ROS environment"
-          source /opt/ros/noetic/setup.bash
-          sudo apt update
-          sudo apt install -y python3-catkin-tools
-
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
       - name: Install dependencies
         shell: bash
         run: |
           sudo apt update
-          sudo apt install -y git libboost-all-dev libeigen3-dev libyaml-cpp-dev liblog4cxx-dev libgtest-dev ros-noetic-jsk-rviz-plugins python3-rosdep
+          sudo apt install -y git libboost-all-dev libeigen3-dev libyaml-cpp-dev libpoco-dev liblog4cxx-dev libgtest-dev python3-vcstool python3-catkin-tools python3-rosdep
+
+      - name: Setup Catkin Workspace
+        shell: bash
+        run: |
+          echo "Setting up ROS environment"
+          source /opt/ros/noetic/setup.bash
+
+          WORKSPACE_DIR=$(pwd)/openmore_ws
+          echo "WORKSPACE_DIR=$(pwd)/openmore_ws" >> "$GITHUB_ENV"
+
+          echo "Setting up Catkin workspace at $WORKSPACE_DIR"
+          mkdir -p $WORKSPACE_DIR/src
+          cd $WORKSPACE_DIR
+
+          catkin init
+          catkin config --extend /opt/ros/noetic
+          catkin config --install
+
+          ls -la
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: "${{env.WORKSPACE_DIR }}/src/replanners_managers_lib"
+
+      - name: Download deps with vcstool
+        shell: bash
+        run: |
+          cd ${{env.WORKSPACE_DIR }}/src
+          vcs import < replanners_managers_lib/deps.repos
+          cd ${{env.WORKSPACE_DIR }}
+          echo 'debconf debconf/frontend select Noninteractive' | sudo debconf-set-selections
+          sudo apt-get install -y -q
+          rosdep update
+          rosdep install --from-paths src --ignore-src -r -y
 
       - name: Build & Install replanners_managers_lib in Catkin Workspace
         shell: bash
         run: |
-          # Ensure the setup script is executable
-          chmod +x .github/workflows/github_workflow_replanners_managers_lib.sh 
-          # Run the installation script
-          .github/workflows/github_workflow_replanners_managers_lib_install.sh
+          cd ${{env.WORKSPACE_DIR }}
+          catkin build -cs
+          source install/setup.bash

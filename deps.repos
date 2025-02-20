@@ -17,7 +17,7 @@ repositories:
 
   cnr_class_loader:
     type: git
-    url: https://github.com/JRL-CARI-CNR-UNIB/cnr_class_loader.git
+    url: https://github.com/JRL-CARI-CNR-UNIBS/cnr_class_loader.git
     version: modern_cmake
 
   graph_core:

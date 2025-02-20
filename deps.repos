@@ -1,59 +1,59 @@
 repositories:
   cnr_logger:
     type: git
-    url: https://github.com/CNR-STIIMA-IRAS/cnr_logger
+    url: https://github.com/CNR-STIIMA-IRAS/cnr_logger.git
     version: master
 
   cnr_yaml:
     type: git
-    url: https://github.com/CNR-STIIMA-IRAS/cnr_yaml
+    url: https://github.com/CNR-STIIMA-IRAS/cnr_yaml.git
     version: master
 
   cnr_param:
     type: git
-    url: https://github.com/CNR-STIIMA-IRAS/cnr_param
+    url: https://github.com/CNR-STIIMA-IRAS/cnr_param.git
     version: master
 
   cnr_class_loader:
     type: git
-    url: https://github.com/CNR-STIIMA-IRAS/cnr_class_loader
+    url: https://github.com/CNR-STIIMA-IRAS/cnr_class_loader.git
     version: master
 
   graph_core:
     type: git
-    url: https://github.com/JRL-CARI-CNR-UNIBS/graph_core
+    url: https://github.com/JRL-CARI-CNR-UNIBS/graph_core.git
     version: master
 
   moveit_collision_checker:
     type: git
-    url: https://github.com/JRL-CARI-CNR-UNIBS/moveit_collision_checker
+    url: https://github.com/JRL-CARI-CNR-UNIBS/moveit_collision_checker.git
     version: master
 
   graph_display:
     type: git
-    url: https://github.com/JRL-CARI-CNR-UNIBS/graph_display
+    url: https://github.com/JRL-CARI-CNR-UNIBS/graph_display.git
     version: master
 
   cnr_scene_manager:
     type: git
-    url: https://github.com/JRL-CARI-CNR-UNIBS/cnr_scene_manager
+    url: https://github.com/JRL-CARI-CNR-UNIBS/cnr_scene_manager.git
     version: master
 
   cnr_tf_named_object_loader:
     type: git
-    url: https://github.com/CNR-STIIMA-IRAS/cnr_tf_named_object_loader
+    url: https://github.com/CNR-STIIMA-IRAS/cnr_tf_named_object_loader.git
     version: master
 
   subscription_notifier:
     type: git
-    url: https://github.com/CNR-STIIMA-IRAS/subscription_notifier
+    url: https://github.com/CNR-STIIMA-IRAS/subscription_notifier.git
 
   replanners_lib:
     type: git
-    url: https://github.com/JRL-CARI-CNR-UNIBS/replanners_lib
+    url: https://github.com/JRL-CARI-CNR-UNIBS/replanners_lib.git
     version: master
 
   trajectories_processors_lib:
     type: git
-    url: https://github.com/JRL-CARI-CNR-UNIBS/trajectories_processors_lib
+    url: https://github.com/JRL-CARI-CNR-UNIBS/trajectories_processors_lib.git
     version: master

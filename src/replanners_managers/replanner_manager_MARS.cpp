@@ -642,12 +642,6 @@ void ReplannerManagerMARS::collisionCheckThread()
     paths_mtx_.unlock();
     trj_mtx_.unlock();
 
-    if ((current_configuration_copy - replanner_->getGoal()->getConfiguration()).norm() < goal_tol_)
-    {
-      stop_ = true;
-      break;
-    }
-
     /* Launch collision check tasks */
 
     std::vector<std::shared_future<bool>> tasks;

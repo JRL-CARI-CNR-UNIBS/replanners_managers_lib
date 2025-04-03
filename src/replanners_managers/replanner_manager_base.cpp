@@ -637,12 +637,6 @@ void ReplannerManagerBase::collisionCheckThread()
     paths_mtx_.unlock();
     trj_mtx_.unlock();
 
-    if ((current_configuration_copy - replanner_->getGoal()->getConfiguration()).norm() < goal_tol_)
-    {
-      stop_ = true;
-      break;
-    }
-
     size_t conn_idx;
     if (not current_path_copy->findConnection(current_configuration_copy, conn_idx))
       continue;

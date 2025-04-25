@@ -38,6 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <mutex>
 #include <thread>
 #include <random>
+#include <shared_mutex>
 
 #include <std_msgs/Int64.h>
 #include <std_msgs/ColorRGBA.h>
@@ -48,7 +49,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cnr_scene_manager_msgs/RemoveObjects.h>
 
 #include <openmore/replanners/replanner_base.h>
-#include <subscription_notifier/subscription_notifier.h>  //remove?
+#include <subscription_notifier/subscription_notifier.h>
 #include <openmore/trajectories_processors/trajectory_processor_base.h>
 #include <moveit_collision_checker/collision_checkers/parallel_moveit_collision_checker.h>
 

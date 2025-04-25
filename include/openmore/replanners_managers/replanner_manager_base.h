@@ -92,9 +92,26 @@ protected:
   std::string group_name_;
 
   /**
-   * @brief Pointer to the trajectory processor, which is in charge of computing timing-laws for the new paths found.
+   * @brief Pointer to the trajectory processor.
+   *
+   * It is responsible for computing the time law associated with newly planned paths.
+   * It also provides robot states by interpolating along the generated trajectory.
    */
   TrajectoryPtr trajectory_processor_;
+
+  /**
+   * @brief Pointer to the trajectory processor used to get the replanning configuration
+   * by interpolating the trajectory at time t_replan_. This object is automatically
+   * created by cloning trajectory_processor_
+   */
+  /**
+   * @brief Pointer to the trajectory processor used during replanning.
+   *
+   * This processor is a clone of the trajectory_processor_ and is specifically used to
+   * interpolate the trajectory at t_replan_ to get the configuration used as
+   * startying point for replanning ('configuration_replan_').
+   */
+  TrajectoryPtr trajectory_processor_replanning_;
 
   /**
    * @brief Pointer to a solver, required by the path replanning algorithm.

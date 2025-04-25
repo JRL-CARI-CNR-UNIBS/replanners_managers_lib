@@ -153,6 +153,10 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
   TreePtr tree = current_path->getTree();
 
+  CNR_DEBUG(logger_, RESET() << BW() << "REPLANNED PATH\n" << *replanned_path);
+
+  CNR_DEBUG(logger_, RESET() << BR() << "CURRENT PATH\n" << *current_path);
+
   assert(current_path->findConnection(configuration) != nullptr);
 
   if (old_current_node_ && ((old_current_node_->getConfiguration() - configuration).norm() > TOLERANCE) && old_current_node_ != node_replan &&
@@ -273,7 +277,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
       CNR_DEBUG(logger_, RESET() << BC() << "DISTANCE ZERO");
 
       if (node_replan != current_node)
-        throw std::runtime_error("shoudl be the same node");
+        throw std::runtime_error("should be the same node");
     }
     else if (distance < 0)  // replan node before current node on current path
     {
@@ -363,9 +367,12 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
       PathPtr tmp_subpath;
       tmp_subpath = current_path->getSubpathFromNode(current_node);
+      CNR_DEBUG(logger_, RESET() << BC() << "subpath from current node \n" << *tmp_subpath);
+
       try
       {
         tmp_subpath = tmp_subpath->getSubpathToNode(node_replan);
+        CNR_DEBUG(logger_, RESET() << BC() << "subpath from current node to node replan \n" << *tmp_subpath);
       }
       catch (...)
       {

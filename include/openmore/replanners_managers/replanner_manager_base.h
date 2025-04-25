@@ -814,16 +814,6 @@ protected:
    */
   virtual bool joinThreads();
 
-  /**
-   * @brief Runs the replanning manager.
-   *
-   * This method initializes attributes and starts all necessary threads for the replanning
-   * process.
-   *
-   * @return True if the manager was successfully started.
-   */
-  virtual bool run();
-
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -978,6 +968,17 @@ public:
    * @return True if the manager was successfully started and completed.
    */
   virtual bool start();
+
+  /**
+   * @brief Runs the replanning manager.
+   *
+   * This method initializes attributes and starts all necessary threads for the replanning
+   * process. Differently from start(), it does not blocks until all threads are finished,
+   * so you have to call stop() at the end of the execution (e.g., when goalReached() is true).
+   *
+   * @return True if the manager was successfully started.
+   */
+  virtual bool run();
 
   /**
    * @brief Pure virtual function to adjust the start of the replanned path to a new current configuration.

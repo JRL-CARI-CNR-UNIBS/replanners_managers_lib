@@ -204,13 +204,15 @@ void ReplannerManagerBase::attributeInitialization()
   if (trajectory_processor_->getTrj().empty())  // if trj was not computed externally
     trajectory_processor_->computeTrj();
 
+  trajectory_processor_replanning_ = trajectory_processor_->clone();
+
   pnt_ = std::make_shared<TrjPoint>();
   pnt_unscaled_ = std::make_shared<TrjPoint>();
   pnt_replan_ = std::make_shared<TrjPoint>();
 
   trajectory_processor_->interpolate(t_, pnt_unscaled_, scaling_from_param_);
-  trajectory_processor_->interpolate(t_replan_, pnt_replan_, target_scaling_);
   trajectory_processor_->interpolate(t_, pnt_, target_scaling_, updated_scaling_);
+  trajectory_processor_replanning_->interpolate(t_replan_, pnt_replan_, target_scaling_);
 
   Eigen::VectorXd point2project(joint_names.size());
   for (size_t i = 0; i < pnt_replan_->state_->pos_.size(); i++)
@@ -436,7 +438,7 @@ void ReplannerManagerBase::replanningThread()
     tic = graph_time::now();
 
     trj_mtx_.lock();
-    trajectory_processor_->interpolate(t_replan_, pnt_replan_, target_scaling_);
+    trajectory_processor_replanning_->interpolate(t_replan_, pnt_replan_, target_scaling_);
 
     for (size_t i = 0; i < pnt_replan_->state_->pos_.size(); i++)
       point2project(i) = pnt_replan_->state_->pos_[i];
@@ -478,7 +480,7 @@ void ReplannerManagerBase::replanningThread()
       replanner_mtx_.lock();
       if (not(current_path_->findConnection(configuration_replan_)))
       {
-        CNR_INFO(logger_, RESET() << BOLDYELLOW() << "configuration replan not found on path" << RESET());
+        CNR_INFO(logger_, RESET() << BOLDYELLOW() << "The configuration for replanning seems to not belong to the path" << RESET());
         trj_mtx_.lock();
         configuration_replan_ = current_configuration_;
         trj_mtx_.unlock();
@@ -524,9 +526,9 @@ void ReplannerManagerBase::replanningThread()
         trj_mtx_.lock();
         Eigen::VectorXd current_conf = current_configuration_;
         tic_current_conf_ = graph_time::now();
+        trj_mtx_.unlock();
 
         startReplannedPathFromNewCurrentConf(current_conf);
-        trj_mtx_.unlock();
 
         replanner_mtx_.lock();
         trj_mtx_.lock();
@@ -537,6 +539,8 @@ void ReplannerManagerBase::replanningThread()
 
           trajectory_processor_->setPath(trj_path->getWaypoints());
           trajectory_processor_->computeTrj(pnt_->state_);
+
+          trajectory_processor_replanning_ = trajectory_processor_->clone();
 
           t_ = updated_scaling_ * toSeconds(graph_time::now(), tic_current_conf_);  // 0.0
           t_replan_ = t_ + time_shift_ * updated_scaling_;
@@ -807,8 +811,7 @@ void ReplannerManagerBase::trajectoryExecutionThread()
 
     toc = graph_time::now();
     duration = toSeconds(toc, tic);
-    //    if(duration>(1.0/double(trj_exec_thread_frequency_)) && display_timing_warning_)
-    if (duration > (1.0 / double(trj_exec_thread_frequency_)))
+    if (duration > (1.0 / double(trj_exec_thread_frequency_)) && display_timing_warning_)
       CNR_INFO(logger_, RESET() << BOLDYELLOW() << "Trj execution thread time expired: duration-> " << duration << RESET());
 
     lp.sleep();

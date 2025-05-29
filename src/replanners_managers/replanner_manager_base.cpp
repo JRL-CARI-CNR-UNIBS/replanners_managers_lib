@@ -538,7 +538,7 @@ void ReplannerManagerBase::replanningThread()
           trj_path = preprocessTrajectoryPath(replanner_->getReplannedPath());
 
           trajectory_processor_->setPath(trj_path->getWaypoints());
-          trajectory_processor_->computeTrj(pnt_->state_);
+          trajectory_processor_->computeTrj(pnt_unscaled_->state_);
 
           trajectory_processor_replanning_ = trajectory_processor_->clone();
 

@@ -100,6 +100,16 @@ protected:
   TrajectoryPtr trajectory_processor_;
 
   /**
+   * @brief Pointer to the unscaled trajectory processor.
+   *
+   * Unlike `trajectory_processor_`, this processor uses `scaling_from_param` for interpolation
+   * instead of `target_scaling_`. This allows retrieval of the robot's next state 'pnt_unscaled_'
+   * along the nominal trajectory, without applying safety-related scaling adjustments
+   * from external topics.
+   */
+  TrajectoryPtr trajectory_processor_unscaled_;
+
+  /**
    * @brief Pointer to the trajectory processor used to get the replanning configuration
    * by interpolating the trajectory at time t_replan_. This object is automatically
    * created by cloning trajectory_processor_

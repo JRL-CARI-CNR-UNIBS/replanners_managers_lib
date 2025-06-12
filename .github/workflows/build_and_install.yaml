@@ -52,14 +52,12 @@ jobs:
       - name: Download deps with vcstool
         shell: bash
         run: |
-          export ROS_DISTRO=noetic
           cd ${{env.WORKSPACE_DIR }}/src
           vcs import < replanners_managers_lib/deps.repos
           cd ${{env.WORKSPACE_DIR }}
           echo 'debconf debconf/frontend select Noninteractive' | sudo debconf-set-selections
           sudo apt-get install -y -q
-          rosdep fix-permissions
-          rosdep update
+          rosdep update --include-eol-distros
           rosdep install --from-paths src --ignore-src -r -y
 
       - name: Build & Install replanners_managers_lib in Catkin Workspace

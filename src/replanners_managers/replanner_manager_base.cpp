@@ -769,7 +769,7 @@ void ReplannerManagerBase::trajectoryExecutionThread()
       target_scaling_ *= readScalingTopics();
 
     current_instant = graph_time::now();
-    dt_ = toSeconds(current_instant,past_instant);
+    dt_ = toSeconds(current_instant, past_instant);
     past_instant = current_instant;
 
     real_time_ += dt_;

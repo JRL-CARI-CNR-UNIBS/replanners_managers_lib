@@ -57,7 +57,7 @@ jobs:
           cd ${{env.WORKSPACE_DIR }}
           echo 'debconf debconf/frontend select Noninteractive' | sudo debconf-set-selections
           sudo apt-get install -y -q
-          rosdep update
+          rosdep update --include-eol-distros
           rosdep install --from-paths src --ignore-src -r -y
 
       - name: Build & Install replanners_managers_lib in Catkin Workspace

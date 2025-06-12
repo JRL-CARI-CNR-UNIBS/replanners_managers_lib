@@ -748,8 +748,8 @@ double ReplannerManagerBase::readScalingTopics()
 
 void ReplannerManagerBase::trajectoryExecutionThread()
 {
+  double duration;
   PathPtr path2project_on;
-  double duration,actual_dt;
   graph_time_point tic, toc, current_instant, past_instant;
   Eigen::VectorXd point2project(pnt_->state_->pos_.size());
   Eigen::VectorXd goal_conf = replanner_->getGoal()->getConfiguration();
@@ -769,11 +769,11 @@ void ReplannerManagerBase::trajectoryExecutionThread()
       target_scaling_ *= readScalingTopics();
 
     current_instant = graph_time::now();
-    actual_dt = toSeconds(current_instant,past_instant);
+    dt_ = toSeconds(current_instant,past_instant);
     past_instant = current_instant;
 
-    real_time_ += actual_dt;
-    t_ += updated_scaling_ * actual_dt;
+    real_time_ += dt_;
+    t_ += updated_scaling_ * dt_;
     t_replan_ = t_ + time_shift_ * updated_scaling_;
 
     trajectory_processor_->interpolate(t_, pnt_, target_scaling_, updated_scaling_);

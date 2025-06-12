@@ -415,7 +415,7 @@ void ReplannerManagerBase::replanningThread()
 {
   ros::WallRate lp(replanning_thread_frequency_);
 
-  graph_time_point tic, toc, tic_rep, toc_rep;
+  graph_time_point tic, toc, tic_rep, toc_rep, tic_current_conf;
 
   PathPtr path2project_on;
   Eigen::VectorXd current_configuration;
@@ -525,7 +525,7 @@ void ReplannerManagerBase::replanningThread()
       {
         trj_mtx_.lock();
         Eigen::VectorXd current_conf = current_configuration_;
-        tic_current_conf_ = graph_time::now();
+        tic_current_conf = graph_time::now();
         trj_mtx_.unlock();
 
         startReplannedPathFromNewCurrentConf(current_conf);
@@ -543,7 +543,7 @@ void ReplannerManagerBase::replanningThread()
           trajectory_processor_unscaled_ = trajectory_processor_->clone();
           trajectory_processor_replanning_ = trajectory_processor_->clone();
 
-          t_ = updated_scaling_ * toSeconds(graph_time::now(), tic_current_conf_);  // 0.0
+          t_ = updated_scaling_ * toSeconds(graph_time::now(), tic_current_conf);
           t_replan_ = t_ + time_shift_ * updated_scaling_;
 
           /*
@@ -748,13 +748,14 @@ double ReplannerManagerBase::readScalingTopics()
 
 void ReplannerManagerBase::trajectoryExecutionThread()
 {
-  double duration;
-  graph_time_point tic, toc;
   PathPtr path2project_on;
+  double duration,actual_dt;
+  graph_time_point tic, toc, current_instant, past_instant;
   Eigen::VectorXd point2project(pnt_->state_->pos_.size());
   Eigen::VectorXd goal_conf = replanner_->getGoal()->getConfiguration();
 
   ros::WallRate lp(trj_exec_thread_frequency_);
+  past_instant = graph_time::now();
 
   while ((not stop_) && ros::ok())
   {
@@ -767,8 +768,12 @@ void ReplannerManagerBase::trajectoryExecutionThread()
     if (read_safe_scaling_)
       target_scaling_ *= readScalingTopics();
 
-    real_time_ += dt_;
-    t_ += updated_scaling_ * dt_;
+    current_instant = graph_time::now();
+    actual_dt = toSeconds(current_instant,past_instant);
+    past_instant = current_instant;
+
+    real_time_ += actual_dt;
+    t_ += updated_scaling_ * actual_dt;
     t_replan_ = t_ + time_shift_ * updated_scaling_;
 
     trajectory_processor_->interpolate(t_, pnt_, target_scaling_, updated_scaling_);

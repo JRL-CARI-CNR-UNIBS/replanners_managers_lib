@@ -355,14 +355,6 @@ protected:
   ros::NodeHandle nh_;
 
   /**
-   * @brief Timestamp when the replanning thread reads the current configuration.
-   *
-   * This variable stores the time when the `replanningThread` captures the current configuration
-   * before adapting the replanned path to it using `startReplannedPathFromNewCurrentConf`.
-   */
-  graph_time_point tic_current_conf_;
-
-  /**
    * @brief Pointer to the current trajectory point.
    */
   TrjPointPtr pnt_;

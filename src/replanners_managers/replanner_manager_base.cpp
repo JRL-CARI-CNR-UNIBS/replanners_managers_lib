@@ -10,16 +10,16 @@ All rights reserved.
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 
-   1. Redistributions of source code must retain the above copyright notice,
-      this list of conditions and the following disclaimer.
+1. Redistributions of source code must retain the above copyright notice,
+this list of conditions and the following disclaimer.
 
-   2. Redistributions in binary form must reproduce the above copyright notice,
-      this list of conditions and the following disclaimer in the documentation
-      and/or other materials provided with the distribution.
+2. Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
 
-   3. Neither the name of the copyright holder nor the names of its
-      contributors may be used to endorse or promote products derived from
-      this software without specific prior written permission.
+3. Neither the name of the copyright holder nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -41,7 +41,11 @@ ReplannerManagerBase::ReplannerManagerBase(const PathPtr& current_path, const Tr
                                            const std::string& param_ns, const TraceLoggerPtr& logger)
   : current_path_(current_path), trajectory_processor_(trajectory_processor), solver_(solver), param_ns_(param_ns), logger_(logger)
 {
-  nh_ = ros::NodeHandle("~");
+  nh_ = rclcpp::Node::make_shared("replanner_manager_internal_node");
+  executor_ = std::make_shared<rclcpp::executors::MultiThreadedExecutor>(rclcpp::ExecutorOptions(), /*number_of_threads=*/4);
+
+  executor_->add_node(nh_);
+
   replanning_enabled_ = true;
 
   fromParam();
@@ -132,25 +136,30 @@ void ReplannerManagerBase::attributeInitialization()
   if (group_name_.empty())
     throw std::invalid_argument("group name not set");
 
-  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
-  robot_model::RobotModelPtr kinematic_model = robot_model_loader.getModel();
+  std::shared_ptr<robot_model_loader::RobotModelLoader> robot_model_loader = std::make_shared<robot_model_loader::RobotModelLoader>(nh_, "robot_description");
+  moveit::core::RobotModelPtr kinematic_model = robot_model_loader->getModel();
 
-  moveit_msgs::GetPlanningScene ps_srv;
-  if (not plannning_scene_client_.call(ps_srv))
+  auto ps_srv_req = std::make_shared<moveit_msgs::srv::GetPlanningScene::Request>();
+  auto fut = plannning_scene_client_->async_send_request(ps_srv_req);
+
+  if (fut.wait_for(std::chrono::seconds(5)) != std::future_status::ready || !fut.valid())
     throw std::runtime_error("call to planning scene srv not ok");
 
+  const auto ps_srv_resp = fut.get();
+
   planning_scn_cc_ = std::make_shared<planning_scene::PlanningScene>(kinematic_model);
-  if (not planning_scn_cc_->setPlanningSceneMsg(ps_srv.response.scene))
+  if (not planning_scn_cc_->setPlanningSceneMsg(ps_srv_resp->scene))
     throw std::runtime_error("unable to update planning scene");
+
   planning_scn_replanning_ = planning_scn_cc_->diff();
 
-  planning_scene_msg_ = ps_srv.response.scene;
+  planning_scene_msg_ = ps_srv_resp->scene;
   planning_scene_diff_msg_.is_diff = true;
-  planning_scene_diff_msg_.world = ps_srv.response.scene.world;
+  planning_scene_diff_msg_.world = ps_srv_resp->scene.world;
 
-  robot_state::RobotState state(planning_scn_cc_->getCurrentState());
-  const robot_state::JointModelGroup* joint_model_group = state.getJointModelGroup(group_name_);
-  std::vector<std::string> joint_names = joint_model_group->getActiveJointModelNames();
+  moveit::core::RobotState state = planning_scn_cc_->getCurrentState();
+  const moveit::core::JointModelGroup* joint_model_group = state.getJointModelGroup(group_name_);
+  const std::vector<std::string>& joint_names = joint_model_group->getActiveJointModelNames();
 
   current_path_shared_ = current_path_->clone();
 
@@ -224,19 +233,20 @@ void ReplannerManagerBase::attributeInitialization()
 
   obj_ids_.clear();
 
+  new_joint_state_.name = joint_names;
   new_joint_state_.position = pnt_->state_->pos_;
   new_joint_state_.velocity = pnt_->state_->vel_;
-  new_joint_state_.name = joint_names;
   new_joint_state_.header.frame_id = kinematic_model->getModelFrame();
-  new_joint_state_.header.stamp = ros::Time::now();
+  new_joint_state_.header.stamp = nh_->get_clock()->now();
+
+  new_joint_state_unscaled_.name = joint_names;
   new_joint_state_unscaled_.position = pnt_unscaled_->state_->pos_;
   new_joint_state_unscaled_.velocity = pnt_unscaled_->state_->vel_;
-  new_joint_state_unscaled_.name = joint_names;
   new_joint_state_unscaled_.header.frame_id = kinematic_model->getModelFrame();
-  new_joint_state_unscaled_.header.stamp = ros::Time::now();
+  new_joint_state_unscaled_.header.stamp = nh_->get_clock()->now();
 }
 
-void ReplannerManagerBase::overrideCallback(const std_msgs::Int64ConstPtr& msg, const std::string& override_name)
+void ReplannerManagerBase::overrideCallback(const std_msgs::msg::Int64::SharedPtr msg, const std::string& override_name)
 {
   double ovr;
   double global_override = 1.0;
@@ -249,7 +259,7 @@ void ReplannerManagerBase::overrideCallback(const std_msgs::Int64ConstPtr& msg, 
     ovr = msg->data * 0.01;
 
   overrides_.at(override_name) = ovr;
-  for (const std::pair<std::string, double>& p : overrides_)
+  for (const auto& p : overrides_)
     global_override *= p.second;
 
   ovr_mtx_.lock();
@@ -262,61 +272,47 @@ void ReplannerManagerBase::subscribeTopicsAndServices()
   scaling_topics_vector_.clear();
   for (const std::string& scaling_topic_name : scaling_topics_names_)
   {
-    auto cb = boost::bind(&ReplannerManagerBase::overrideCallback, this, _1, scaling_topic_name);
-    scaling_topics_vector_.push_back(std::make_shared<ros_helper::SubscriptionNotifier<std_msgs::Int64>>(nh_, scaling_topic_name, 1, cb));
+    auto cb = [this, scaling_topic_name](std_msgs::msg::Int64::SharedPtr msg) { this->overrideCallback(msg, scaling_topic_name); };
+    auto sub = nh_->create_subscription<std_msgs::msg::Int64>(scaling_topic_name, rclcpp::QoS(10), cb);
 
-    overrides_.insert(std::pair<std::string, double>(scaling_topic_name, 0.0));
+    scaling_topics_vector_.push_back(sub);
+
+    overrides_.insert(std::make_pair(scaling_topic_name, 0.0));
     CNR_INFO(logger_, "Subscribing speed override topic " << scaling_topic_name.c_str());
   }
 
-  target_pub_ = nh_.advertise<sensor_msgs::JointState>(joint_target_topic_, 10);
-  unscaled_target_pub_ = nh_.advertise<sensor_msgs::JointState>(unscaled_joint_target_topic_, 10);
+  target_pub_ = nh_->create_publisher<sensor_msgs::msg::JointState>(joint_target_topic_, rclcpp::QoS(10));
+  unscaled_target_pub_ = nh_->create_publisher<sensor_msgs::msg::JointState>(unscaled_joint_target_topic_, rclcpp::QoS(10));
 
   if (benchmark_)
-    text_overlay_pub_ = nh_.advertise<jsk_rviz_plugins::OverlayText>("/rviz_text_overlay_replanner_bench", 1);
+    text_overlay_pub_ = nh_->create_publisher<rviz_2d_overlay_msgs::msg::OverlayText>("/rviz_text_overlay_replanner_bench", rclcpp::QoS(10));
 
-  /*
-   * '/get_planning_scene' is continuously called by the collisionCheckThread.
-   *  Use a persistent connection to the server to improve performance
-   */
-  if (not ros::service::waitForService("/get_planning_scene", 10))
+  plannning_scene_client_ = nh_->create_client<moveit_msgs::srv::GetPlanningScene>("/get_planning_scene");
+
+  if (!plannning_scene_client_->wait_for_service(std::chrono::seconds(10)))
     throw std::runtime_error("server /get_planning_scene not available");
-
-  plannning_scene_client_ =
-      nh_.serviceClient<moveit_msgs::GetPlanningScene>("/get_planning_scene", true);  // persistent connection becuase it is called repeatedly
-
-  if (not plannning_scene_client_.waitForExistence(ros::Duration(10)))
-    throw std::runtime_error("unable to connect to /get_planning_scene");
 
   if (spawn_objs_)
   {
-    obj_pose_pub_ = nh_.advertise<geometry_msgs::PoseArray>(obs_pose_topic_, 10);
+    obj_pose_pub_ = nh_->create_publisher<geometry_msgs::msg::PoseArray>(obs_pose_topic_, rclcpp::QoS(10));
 
-    /*
-     * '/cnr_scene_manager/move_objects' is continuously called by the spwanObjectsThread.
-     *  Use a persistent connection to the server to improve performance
-     */
-    if (not ros::service::waitForService("/cnr_scene_manager/move_objects", 10))
-      throw std::runtime_error("server /cnr_scene_manager/move_objects not available");
+    add_obj_ = nh_->create_client<cnr_scene_manager_msgs::srv::AddObjects>("/cnr_scene_manager/add_objects");
+    move_obj_ = nh_->create_client<cnr_scene_manager_msgs::srv::MoveObjects>("/cnr_scene_manager/move_objects");
+    remove_obj_ = nh_->create_client<cnr_scene_manager_msgs::srv::RemoveObjects>("/cnr_scene_manager/remove_objects");
 
-    add_obj_ = nh_.serviceClient<cnr_scene_manager_msgs::AddObjects>("/cnr_scene_manager/add_objects", false);
-    move_obj_ = nh_.serviceClient<cnr_scene_manager_msgs::MoveObjects>("/cnr_scene_manager/move_objects",
-                                                                       true);  // persistent connection becuase it is called repeatedly
-    remove_obj_ = nh_.serviceClient<cnr_scene_manager_msgs::RemoveObjects>("/cnr_scene_manager/remove_objects", false);
-
-    if (not add_obj_.waitForExistence(ros::Duration(10)))
+    if (!add_obj_->wait_for_service(std::chrono::seconds(10)))
     {
       CNR_ERROR(logger_, "unable to connect to /cnr_scene_manager/add_objects");
       spawn_objs_ = false;
     }
 
-    if (not move_obj_.waitForExistence(ros::Duration(10)))
+    if (!move_obj_->wait_for_service(std::chrono::seconds(10)))
     {
       CNR_ERROR(logger_, "unable to connect to /cnr_scene_manager/move_objects");
       spawn_objs_ = false;
     }
 
-    if (not remove_obj_.waitForExistence(ros::Duration(10)))
+    if (!remove_obj_->wait_for_service(std::chrono::seconds(10)))
     {
       CNR_ERROR(logger_, "unable to connect to /cnr_scene_manager/remove_objects");
       spawn_objs_ = false;
@@ -410,7 +406,7 @@ PathPtr ReplannerManagerBase::preprocessTrajectoryPath(const PathPtr& path)
 
 void ReplannerManagerBase::replanningThread()
 {
-  ros::WallRate lp(replanning_thread_frequency_);
+  rclcpp::WallRate lp(replanning_thread_frequency_);
 
   graph_time_point tic, toc, tic_rep, toc_rep;
 
@@ -431,7 +427,7 @@ void ReplannerManagerBase::replanningThread()
   Eigen::VectorXd goal_conf = replanner_->getGoal()->getConfiguration();
   PathPtr trj_path;
 
-  while ((not stop_) && ros::ok())
+  while ((not stop_) && rclcpp::ok())
   {
     tic = graph_time::now();
 
@@ -589,36 +585,40 @@ void ReplannerManagerBase::replanningThread()
 
 void ReplannerManagerBase::collisionCheckThread()
 {
-  moveit_msgs::GetPlanningScene ps_srv;
   Eigen::VectorXd current_configuration_copy;
+  auto ps_srv_req = std::make_shared<moveit_msgs::srv::GetPlanningScene::Request>();
 
   PathPtr current_path_copy = current_path_shared_->clone();
   current_path_copy->setChecker(checker_cc_);
 
   double duration;
   graph_time_point tic, toc;
-  ros::WallRate lp(collision_checker_thread_frequency_);
+  rclcpp::WallRate lp(collision_checker_thread_frequency_);
 
-  moveit_msgs::PlanningScene planning_scene_msg;
+  moveit_msgs::msg::PlanningScene planning_scene_msg;
 
-  while ((not stop_) && ros::ok())
+  while ((not stop_) && rclcpp::ok())
   {
     tic = graph_time::now();
 
     /* Update the planning scene:
      * moveit_msgs::PlanningSceneComponents::WORLD_OBJECT_GEOMETRY +
      * moveit_msgs::PlanningSceneComponents::ROBOT_STATE_ATTACHED_OBJECTS */
-    ps_srv.request.components.components = 20;
+    ps_srv_req->components.components = 20;
 
-    if (not plannning_scene_client_.call(ps_srv))
+    auto future = plannning_scene_client_->async_send_request(ps_srv_req);
+
+    if (future.wait_for(std::chrono::seconds(5)) != std::future_status::ready || !future.valid())
     {
       CNR_ERROR(logger_, "call to srv not ok");
       stop_ = true;
       break;
     }
 
+    const auto ps_srv_resp = future.get();
+
     scene_mtx_.lock();
-    planning_scene_msg.world = ps_srv.response.scene.world;
+    planning_scene_msg.world = ps_srv_resp->scene.world;
     planning_scene_msg.is_diff = true;
     checker_cc_->setPlanningSceneMsg(planning_scene_msg);
     scene_mtx_.unlock();
@@ -653,8 +653,8 @@ void ReplannerManagerBase::collisionCheckThread()
     paths_mtx_.lock();
     if (uploadPathCost(current_path_copy))  // if path cost can be updated, update also the planning scene used to check the path
     {
-      planning_scene_msg_.world = ps_srv.response.scene.world;  // not diff,it contains all pln scn info but only world is updated
-      planning_scene_diff_msg_ = planning_scene_msg;            // diff, contains only world
+      planning_scene_msg_.world = ps_srv_resp->scene.world;  // not diff,it contains all pln scn info but only world is updated
+      planning_scene_diff_msg_ = planning_scene_msg;         // diff, contains only world
 
       cost_updated_ = true;  // dowloadPathCost can be called because the scene and path cost are referred now to the last path found
     }
@@ -692,6 +692,10 @@ bool ReplannerManagerBase::joinThreads()
     benchmark_thread_.join();
   if (spawn_objs_ && spawn_obj_thread_.joinable())
     spawn_obj_thread_.join();
+  if (executor_)
+    executor_->cancel();
+  if (executor_thread_.joinable())
+    executor_thread_.join();
 
   return true;
 }
@@ -704,26 +708,31 @@ bool ReplannerManagerBase::stop()
 
 bool ReplannerManagerBase::run()
 {
-  ros::AsyncSpinner spinner(4);
-  spinner.start();
+  executor_thread_ = std::thread([this]() { executor_->spin(); });
 
   attributeInitialization();
 
-  target_pub_.publish(new_joint_state_);
-  unscaled_target_pub_.publish(new_joint_state_unscaled_);
+  target_pub_->publish(new_joint_state_);
+  unscaled_target_pub_->publish(new_joint_state_unscaled_);
 
   CNR_INFO(logger_, RESET() << BOLDWHITE() << "Launching threads.." << RESET());
 
   display_thread_ =
       std::thread(&ReplannerManagerBase::displayThread, this);  // it must be the first one launched, otherwise the first paths will be not displayed in time
+
   if (spawn_objs_)
     spawn_obj_thread_ = std::thread(&ReplannerManagerBase::spawnObjectsThread, this);
+
   if (benchmark_)
     benchmark_thread_ = std::thread(&ReplannerManagerBase::benchmarkThread, this);
+
   if (replanning_enabled_)
     replanning_thread_ = std::thread(&ReplannerManagerBase::replanningThread, this);
+
   col_check_thread_ = std::thread(&ReplannerManagerBase::collisionCheckThread, this);
-  ros::Duration(0.1).sleep();
+
+  rclcpp::sleep_for(std::chrono::milliseconds(100));
+
   trj_exec_thread_ = std::thread(&ReplannerManagerBase::trajectoryExecutionThread, this);
 
   return true;
@@ -754,9 +763,9 @@ void ReplannerManagerBase::trajectoryExecutionThread()
   Eigen::VectorXd point2project(pnt_->state_->pos_.size());
   Eigen::VectorXd goal_conf = replanner_->getGoal()->getConfiguration();
 
-  ros::WallRate lp(trj_exec_thread_frequency_);
+  rclcpp::WallRate lp(trj_exec_thread_frequency_);
 
-  while ((not stop_) && ros::ok())
+  while ((not stop_) && rclcpp::ok())
   {
     tic = graph_time::now();
 
@@ -796,14 +805,14 @@ void ReplannerManagerBase::trajectoryExecutionThread()
 
     new_joint_state_.position = pnt_->state_->pos_;
     new_joint_state_.velocity = pnt_->state_->vel_;
-    new_joint_state_.header.stamp = ros::Time::now();
+    new_joint_state_.header.stamp = nh_->get_clock()->now();
 
     new_joint_state_unscaled_.position = pnt_unscaled_->state_->pos_;
     new_joint_state_unscaled_.velocity = pnt_unscaled_->state_->vel_;
-    new_joint_state_unscaled_.header.stamp = ros::Time::now();
+    new_joint_state_unscaled_.header.stamp = nh_->get_clock()->now();
 
-    target_pub_.publish(new_joint_state_);
-    unscaled_target_pub_.publish(new_joint_state_unscaled_);
+    target_pub_->publish(new_joint_state_);
+    unscaled_target_pub_->publish(new_joint_state_unscaled_);
 
     toc = graph_time::now();
     duration = toSeconds(toc, tic);
@@ -830,7 +839,7 @@ void ReplannerManagerBase::displayThread()
   PathPtr initial_path = current_path_shared_->clone();
   planning_scene::PlanningScenePtr planning_scene = planning_scene::PlanningScene::clone(planning_scn_cc_);
 
-  DisplayPtr disp = std::make_shared<Display>(planning_scene, group_name_, which_link_display_path_);
+  DisplayPtr disp = std::make_shared<Display>(nh_, planning_scene, group_name_, which_link_display_path_);
 
   PathPtr current_path;
   TrjPoint pnt, pnt_replan;
@@ -851,9 +860,9 @@ void ReplannerManagerBase::displayThread()
   disp->clearMarkers();
 
   unsigned int display_thread_frequency = 2 * trj_exec_thread_frequency_;
-  ros::WallRate lp(display_thread_frequency);
+  rclcpp::WallRate lp(display_thread_frequency);
 
-  while ((not stop_) && ros::ok())
+  while ((not stop_) && rclcpp::ok())
   {
     paths_mtx_.lock();
     current_path = current_path_shared_->clone();
@@ -922,9 +931,9 @@ void ReplannerManagerBase::displayThread()
 
 void ReplannerManagerBase::spawnObjectsThread()
 {
-  cnr_scene_manager_msgs::AddObjects srv_add_object;
-  cnr_scene_manager_msgs::MoveObjects srv_move_objects;
-  cnr_scene_manager_msgs::RemoveObjects srv_remove_object;
+  cnr_scene_manager_msgs::srv::AddObjects::Request add_object_req;
+  cnr_scene_manager_msgs::srv::MoveObjects::Request move_objects_req;
+  cnr_scene_manager_msgs::srv::RemoveObjects::Request remove_object_req;
 
   CollisionCheckerPtr checker = checker_cc_->clone();
   planning_scene::PlanningScenePtr planning_scene = planning_scene::PlanningScene::clone(planning_scn_cc_);
@@ -942,10 +951,10 @@ void ReplannerManagerBase::spawnObjectsThread()
   std::vector<unsigned int> n_move;
   std::vector<Eigen::Vector3d> velocities;
   std::vector<Eigen::Vector3d> objects_locations;
-  std::vector<cnr_scene_manager_msgs::Object> spawned_objects;
+  std::vector<cnr_scene_manager_msgs::msg::Object> spawned_objects;
 
   bool obs_update;
-  geometry_msgs::Quaternion q;
+  geometry_msgs::msg::Quaternion q;
   q.x = 0.0;
   q.y = 0.0;
   q.z = 0.0;
@@ -956,21 +965,21 @@ void ReplannerManagerBase::spawnObjectsThread()
   std::uniform_real_distribution<double> random_vel(-1.0, 1.0);
   std::uniform_real_distribution<double> random_abs(0.2, 0.8);
 
-  cnr_scene_manager_msgs::Object new_obj;
+  cnr_scene_manager_msgs::msg::Object new_obj;
   new_obj.object_type = obj_type_;
   new_obj.pose.header.frame_id = "world";
   new_obj.pose.pose.orientation = q;
 
   std::reverse(spawn_instants_.begin(), spawn_instants_.end());
-  ros::WallRate lp(100);
+  rclcpp::WallRate lp(100);
 
-  while (not stop_ && ros::ok())
+  while (not stop_ && rclcpp::ok())
   {
     obs_update = false;
 
-    srv_add_object.request.objects.clear();
-    srv_move_objects.request.poses.clear();
-    srv_move_objects.request.obj_ids.clear();
+    add_object_req.objects.clear();
+    move_objects_req.poses.clear();
+    move_objects_req.obj_ids.clear();
 
     if (not spawn_instants_.empty())
     {
@@ -993,7 +1002,7 @@ void ReplannerManagerBase::spawnObjectsThread()
         current_pose = forwardIk(current_conf, last_link, planning_scene);
 
         double obj_abscissa = 0.0;
-        while (not stop_ && ros::ok())
+        while (not stop_ && rclcpp::ok())
         {
           obj_abscissa = random_abs(gen);  // 0.2~0.8
 
@@ -1010,9 +1019,9 @@ void ReplannerManagerBase::spawnObjectsThread()
         new_obj.pose.pose.position.y = obj_pose[1];
         new_obj.pose.pose.position.z = obj_pose[2];
 
-        srv_add_object.request.objects.push_back(new_obj);
+        add_object_req.objects.push_back(new_obj);
 
-        if (stop_ || not ros::ok())
+        if (stop_ || not rclcpp::ok())
           break;
       }
     }
@@ -1042,29 +1051,33 @@ void ReplannerManagerBase::spawnObjectsThread()
           n_move.at(i) = n_move.at(i) + 1;
           moving_time.at(i) = real_time_;
 
-          srv_move_objects.request.obj_ids.push_back(ids.at(i));
-          srv_move_objects.request.poses.push_back(spawned_objects.at(i).pose.pose);
+          move_objects_req.obj_ids.push_back(ids.at(i));
+          move_objects_req.poses.push_back(spawned_objects.at(i).pose.pose);
         }
 
-        if (stop_ || not ros::ok())
+        if (stop_ || not rclcpp::ok())
           break;
       }
 
-      if (stop_ || not ros::ok())
+      if (stop_ || not rclcpp::ok())
         break;
     }
 
-    if (not srv_add_object.request.objects.empty())
+    if (not add_object_req.objects.empty())
     {
-      if (not add_obj_.call(srv_add_object))
+      auto add_request = std::make_shared<cnr_scene_manager_msgs::srv::AddObjects::Request>(add_object_req);
+      auto future = add_obj_->async_send_request(add_request);
+
+      if (future.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
       {
         CNR_ERROR(logger_, "call to add obj srv not ok");
-
         stop_ = true;
         break;
       }
 
-      if (not srv_add_object.response.success)
+      auto add_response = future.get();
+
+      if (not add_response->success)
         CNR_ERROR(logger_, "add obj srv error");
       else
       {
@@ -1080,19 +1093,28 @@ void ReplannerManagerBase::spawnObjectsThread()
         moving_time.push_back(real_time_);
         spawned_objects.push_back(new_obj);
         objects_locations.push_back(obj_pose);
-        ids.push_back(srv_add_object.response.ids.front());
+        ids.push_back(add_response->ids.front());
 
-        for (const std::string& str : srv_add_object.response.ids)
-          srv_remove_object.request.obj_ids.push_back(str);
+        for (const std::string& str : add_response->ids)
+          remove_object_req.obj_ids.push_back(str);
       }
     }
 
-    if (not srv_move_objects.request.poses.empty())
+    if (not move_objects_req.poses.empty())
     {
-      if (not move_obj_.call(srv_move_objects))
-        CNR_ERROR(logger_, "call to move obj srv not ok");
+      auto move_request = std::make_shared<cnr_scene_manager_msgs::srv::MoveObjects::Request>(move_objects_req);
+      auto future = move_obj_->async_send_request(move_request);
 
-      if (not srv_move_objects.response.success)
+      if (future.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
+      {
+        CNR_ERROR(logger_, "call to move obj srv not ok");
+        stop_ = true;
+        break;
+      }
+
+      auto move_response = future.get();
+
+      if (not move_response->success)
         CNR_ERROR(logger_, "move obj srv error");
       else
         obs_update = true;
@@ -1100,11 +1122,11 @@ void ReplannerManagerBase::spawnObjectsThread()
 
     if (obs_update)
     {
-      geometry_msgs::PoseArray pose_array;
+      geometry_msgs::msg::PoseArray pose_array;
       pose_array.header.frame_id = "world";
-      pose_array.header.stamp = ros::Time::now();
+      pose_array.header.stamp = nh_->get_clock()->now();
 
-      geometry_msgs::Pose pose;
+      geometry_msgs::msg::Pose pose;
       pose.orientation = q;
 
       bench_mtx_.lock();
@@ -1124,15 +1146,25 @@ void ReplannerManagerBase::spawnObjectsThread()
       }
       bench_mtx_.unlock();
 
-      obj_pose_pub_.publish(pose_array);  // publish poses for SSM node
+      obj_pose_pub_->publish(pose_array);  // publish poses for SSM node
     }
     lp.sleep();
   }
 
-  if (not remove_obj_.call(srv_remove_object))
-    CNR_ERROR(logger_, "call to remove obj srv not ok");
-  if (not srv_remove_object.response.success)
-    CNR_ERROR(logger_, "remove obj srv error");
+  if (not remove_object_req.obj_ids.empty())
+  {
+    auto remove_request = std::make_shared<cnr_scene_manager_msgs::srv::RemoveObjects::Request>(remove_object_req);
+    auto future = remove_obj_->async_send_request(remove_request);
+
+    if (future.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
+      CNR_ERROR(logger_, "call to remove obj srv not ok");
+    else
+    {
+      auto remove_response = future.get();
+      if (not remove_response->success)
+        CNR_ERROR(logger_, "remove obj srv error");
+    }
+  }
 
   CNR_INFO(logger_, RESET() << BOLDCYAN() << "Spawn objects thread is over" << RESET());
 }
@@ -1174,7 +1206,7 @@ void ReplannerManagerBase::benchmarkThread()
 
   std::string text;
 
-  std_msgs::ColorRGBA fg_color_green, fg_color_red, bg_color;
+  std_msgs::msg::ColorRGBA fg_color_green, fg_color_red, bg_color;
   fg_color_green.r = 0;
   fg_color_red.r = 1;
   bg_color.r = 0;
@@ -1188,27 +1220,29 @@ void ReplannerManagerBase::benchmarkThread()
   fg_color_red.a = 0.8;
   bg_color.a = 0;
 
-  jsk_rviz_plugins::OverlayText overlayed_text;
+  rviz_2d_overlay_msgs::msg::OverlayText overlayed_text;
   overlayed_text.font = "FreeSans";
   overlayed_text.bg_color = bg_color;
-  overlayed_text.height = 70;
-  overlayed_text.left = 10;
-  overlayed_text.top = 80;
-  overlayed_text.line_width = 2;
-  overlayed_text.text_size = 15;
   overlayed_text.width = 1000;
+  overlayed_text.height = 70;
+  overlayed_text.horizontal_alignment = rviz_2d_overlay_msgs::msg::OverlayText::LEFT;
+  overlayed_text.vertical_alignment = rviz_2d_overlay_msgs::msg::OverlayText::TOP;
+  overlayed_text.horizontal_distance = 10;
+  overlayed_text.vertical_distance = 80;
+  overlayed_text.line_width = 2;
+  overlayed_text.text_size = 15.0f;
 
   overlayed_text.action = overlayed_text.DELETE;
-  text_overlay_pub_.publish(overlayed_text);
+  text_overlay_pub_->publish(overlayed_text);
 
   overlayed_text.action = overlayed_text.ADD;
 
   double cycle_duration;
   graph_time_point tic, toc;
   unsigned int freq = 2 * trj_exec_thread_frequency_;
-  ros::WallRate lp(freq);
+  rclcpp::WallRate lp(freq);
 
-  while ((not stop_) && ros::ok())
+  while ((not stop_) && rclcpp::ok())
   {
     tic = graph_time::now();
 
@@ -1217,7 +1251,7 @@ void ReplannerManagerBase::benchmarkThread()
       text = "Success: TRUE \nCollided objects: 0";
       overlayed_text.text = text;
       overlayed_text.fg_color = fg_color_green;
-      text_overlay_pub_.publish(overlayed_text);
+      text_overlay_pub_->publish(overlayed_text);
     }
 
     old_pnt_conf = pnt_conf;
@@ -1286,7 +1320,7 @@ void ReplannerManagerBase::benchmarkThread()
             text = "Success: FALSE \nCollided objects: " + std::to_string(n_collisions);
             overlayed_text.text = text;
             overlayed_text.fg_color = fg_color_red;
-            text_overlay_pub_.publish(overlayed_text);
+            text_overlay_pub_->publish(overlayed_text);
 
             break;
           }
@@ -1383,24 +1417,18 @@ void ReplannerManagerBase::benchmarkThread()
 Eigen::Vector3d ReplannerManagerBase::forwardIk(const Eigen::VectorXd& conf, const std::string& last_link,
                                                 const planning_scene::PlanningScenePtr& planning_scene)
 {
-  geometry_msgs::Pose pose;
+  geometry_msgs::msg::Pose pose;
   return forwardIk(conf, last_link, planning_scene, pose);
 }
 
 Eigen::Vector3d ReplannerManagerBase::forwardIk(const Eigen::VectorXd& conf, const std::string& last_link,
-                                                const planning_scene::PlanningScenePtr& planning_scene, geometry_msgs::Pose& pose)
+                                                const planning_scene::PlanningScenePtr& planning_scene, geometry_msgs::msg::Pose& pose)
 {
   moveit::core::RobotState state = fromWaypoint2State(conf, planning_scene, group_name_);
-  tf::poseEigenToMsg(state.getGlobalLinkTransform(last_link), pose);
+  pose = tf2::toMsg(state.getGlobalLinkTransform(last_link));
 
-  std::vector<double> v(3);
-  v[0] = pose.position.x;
-  v[1] = pose.position.y;
-  v[2] = pose.position.z;
-
-  Eigen::Vector3d position(v.size());
-  for (size_t i = 0; i < v.size(); i++)
-    position[i] = v[i];
+  Eigen::Vector3d position;
+  position << pose.position.x, pose.position.y, pose.position.z;
 
   return position;
 }

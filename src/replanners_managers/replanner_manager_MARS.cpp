@@ -308,10 +308,10 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
             if (not display_thread_.joinable())
               display_thread_.join();
 
-            DisplayPtr disp = std::make_shared<Display>(planning_scn_cc_, group_name_);
+            DisplayPtr disp = std::make_shared<Display>(nh_, planning_scn_cc_, group_name_);
             disp->clearMarkers();
 
-            ros::Duration(1).sleep();
+            rclcpp::sleep_for(std::chrono::seconds(1));
 
             disp->displayConnection(conn, "graph_display", { 1, 0, 0, 1 });
 
@@ -319,7 +319,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
             disp->displayNode(std::make_shared<Node>(configuration), "graph_display", { 1, 0, 0, 0.5 });
 
-            ros::Duration(1).sleep();
+            rclcpp::sleep_for(std::chrono::seconds(1));
 
             throw std::runtime_error("err");
           }
@@ -535,7 +535,7 @@ void ReplannerManagerMARS::initReplanner()
   replanner_ = replanner;
 
 #ifdef GRAPH_DISPLAY_AVAILABLE
-  DisplayPtr disp = std::make_shared<Display>(planning_scn_cc_, group_name_);
+  DisplayPtr disp = std::make_shared<Display>(nh_, planning_scn_cc_, group_name_);
   replanner_->setDisp(disp);
 #endif
 }
@@ -550,7 +550,7 @@ bool ReplannerManagerMARS::checkPathTask(const PathPtr& path)
 
 void ReplannerManagerMARS::collisionCheckThread()
 {
-  moveit_msgs::GetPlanningScene ps_srv;
+  auto ps_request = std::make_shared<moveit_msgs::srv::GetPlanningScene::Request>();
   Eigen::VectorXd current_configuration_copy;
 
   PathPtr current_path_copy = current_path_shared_->clone();
@@ -570,29 +570,33 @@ void ReplannerManagerMARS::collisionCheckThread()
 
   size_t other_path_size = other_paths_copy.size();
 
-  ros::WallRate lp(collision_checker_thread_frequency_);
+  rclcpp::WallRate lp(collision_checker_thread_frequency_);
   graph_time_point tic;
 
-  moveit_msgs::PlanningScene planning_scene_msg;
+  moveit_msgs::msg::PlanningScene planning_scene_msg;
 
-  while ((not stop_) && ros::ok())
+  while ((not stop_) && rclcpp::ok())
   {
     tic = graph_time::now();
 
     /* Update the planning scene:
      * moveit_msgs::PlanningSceneComponents::WORLD_OBJECT_GEOMETRY +
      * moveit_msgs::PlanningSceneComponents::ROBOT_STATE_ATTACHED_OBJECTS */
-    ps_srv.request.components.components = 20;
+    ps_request->components.components = 20;
 
-    if (not plannning_scene_client_.call(ps_srv))
+    auto future = plannning_scene_client_->async_send_request(ps_request);
+
+    if (future.wait_for(std::chrono::seconds(5)) != std::future_status::ready || !future.valid())
     {
-      CNR_ERROR(logger_, "call to srv not ok");
+      CNR_ERROR(logger_, "call to planning scene srv not ok");
       stop_ = true;
       break;
     }
 
+    const auto ps_resp = future.get();
+
     scene_mtx_.lock();
-    planning_scene_msg.world = ps_srv.response.scene.world;
+    planning_scene_msg.world = ps_resp->scene.world;
     planning_scene_msg.is_diff = true;
     checker_cc_->setPlanningSceneMsg(planning_scene_msg);
 
@@ -672,8 +676,8 @@ void ReplannerManagerMARS::collisionCheckThread()
     other_paths_mtx_.lock();
     if (uploadPathsCost(current_path_copy, other_paths_copy))
     {
-      planning_scene_msg_.world = ps_srv.response.scene.world;  // not diff,it contains all pln scn info but only world is updated
-      planning_scene_diff_msg_ = planning_scene_msg;            // diff, contains only world
+      planning_scene_msg_.world = ps_resp->scene.world;  // not diff,it contains all pln scn info but only world is updated
+      planning_scene_diff_msg_ = planning_scene_msg;     // diff, contains only world
 
       cost_updated_ = true;  // dowloadPathCost can be called because the scene and path cost are referred now to the last path found
     }
@@ -765,7 +769,7 @@ void ReplannerManagerMARS::displayCurrentPath()
 
 void ReplannerManagerMARS::displayOtherPaths()
 {
-  DisplayPtr disp = std::make_shared<Display>(planning_scn_cc_, group_name_);
+  DisplayPtr disp = std::make_shared<Display>(nh_, planning_scn_cc_, group_name_);
   disp->clearMarkers();
 
   int path_id, wp_id;
@@ -776,9 +780,9 @@ void ReplannerManagerMARS::displayOtherPaths()
   disp->changeNodeSize(marker_scale);
 
   double display_thread_frequency = 0.75 * trj_exec_thread_frequency_;
-  ros::WallRate lp(display_thread_frequency);
+  rclcpp::WallRate lp(display_thread_frequency);
 
-  while ((not stop_) && ros::ok())
+  while ((not stop_) && rclcpp::ok())
   {
     other_paths.clear();
 

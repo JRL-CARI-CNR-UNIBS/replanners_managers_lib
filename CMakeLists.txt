@@ -18,36 +18,18 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
 find_package(replanners_lib REQUIRED)
 find_package(trajectories_processors_lib REQUIRED)
-
-find_package(catkin REQUIRED COMPONENTS
-  roscpp
-  graph_display
-  cnr_scene_manager_msgs
-  moveit_collision_checker
-  jsk_rviz_plugins
-  subscription_notifier
-  )
-
-catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS roscpp graph_display moveit_collision_checker cnr_scene_manager_msgs jsk_rviz_plugins subscription_notifier
-  DEPENDS replanners_lib trajectories_processors_lib
-  )
+find_package(graph_display REQUIRED)
+find_package(cnr_scene_manager_msgs REQUIRED)
+find_package(moveit_collision_checker REQUIRED)
+find_package(rviz_2d_overlay_msgs REQUIRED)
 
 ###########
 ## Build ##
 ###########
-
-## Specify additional locations of header files
-## Your package locations should be listed before other locations
-include_directories(
-  include
-  ${catkin_INCLUDE_DIRS}
-  )
-
 add_library(${PROJECT_NAME} SHARED
   src/replanners_managers/replanner_manager_base.cpp
   src/replanners_managers/replanner_manager_DRRT.cpp
@@ -56,30 +38,31 @@ add_library(${PROJECT_NAME} SHARED
   src/replanners_managers/replanner_manager_MPRRT.cpp
   src/replanners_managers/replanner_manager_MARS.cpp
   )
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} )
-target_link_libraries(${PROJECT_NAME} PUBLIC
- replanners_lib::replanners_lib
- trajectories_processors_lib::trajectories_processors_lib
- ${catkin_LIBRARIES}
- )
+target_link_libraries(${PROJECT_NAME} PUBLIC replanners_lib::replanners_lib trajectories_processors_lib::trajectories_processors_lib)
+target_include_directories(${PROJECT_NAME} 
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>)
+ament_target_dependencies(${PROJECT_NAME} PUBLIC rclcpp graph_display cnr_scene_manager_msgs moveit_collision_checker rviz_2d_overlay_msgs)
+
+ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET) # exports the targets for CMake, to allow your library’s clients to use the target_link_libraries(client my_library::my_library) syntax.
+ament_export_dependencies(rclcpp graph_display cnr_scene_manager_msgs moveit_collision_checker replanners_lib trajectories_processors_lib rviz_2d_overlay_msgs)
 
 # Install
-install(DIRECTORY include/openmore
-  DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}/
-  FILES_MATCHING
-  PATTERN "*.h"
-  PATTERN "*.hpp"
-  PATTERN ".svn" EXCLUDE
-  )
+install(TARGETS
+        ${PROJECT_NAME}
+        EXPORT ${PROJECT_NAME}Targets
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        RUNTIME DESTINATION bin
+    )
 
 install(
-  TARGETS ${PROJECT_NAME}
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
-  )
+      DIRECTORY include/openmore
+      DESTINATION include
+    )
 
-  # Clang-format target
+# Clang-format target
 file(GLOB_RECURSE ALL_SOURCE_FILES *.cpp *.h)
 
 add_custom_target(
@@ -89,3 +72,5 @@ add_custom_target(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Running clang-format on all source files"
 )
+
+ament_package()

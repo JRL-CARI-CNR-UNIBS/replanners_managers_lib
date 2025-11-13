@@ -40,16 +40,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <random>
 #include <shared_mutex>
 
-#include <std_msgs/Int64.h>
-#include <std_msgs/ColorRGBA.h>
-#include <jsk_rviz_plugins/OverlayText.h>
+#include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/int64.hpp>
+#include <std_msgs/msg/color_rgba.hpp>
+#include <rviz_2d_overlay_msgs/msg/overlay_text.hpp>
 
-#include <cnr_scene_manager_msgs/AddObjects.h>
-#include <cnr_scene_manager_msgs/MoveObjects.h>
-#include <cnr_scene_manager_msgs/RemoveObjects.h>
+#include <cnr_scene_manager_msgs/srv/add_objects.hpp>
+#include <cnr_scene_manager_msgs/srv/move_objects.hpp>
+#include <cnr_scene_manager_msgs/srv/remove_objects.hpp>
 
+#include <graph_display/graph_display.h>
 #include <openmore/replanners/replanner_base.h>
-#include <subscription_notifier/subscription_notifier.h>
 #include <openmore/trajectories_processors/trajectory_processor_base.h>
 #include <moveit_collision_checker/collision_checkers/parallel_moveit_collision_checker.h>
 

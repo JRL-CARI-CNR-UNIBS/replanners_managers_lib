@@ -350,9 +350,14 @@ protected:
   double dt_move_;
 
   /**
-   * @brief ROS node handle used for managing ROS communication.
+   * @brief ROS node used for managing ROS communication.
    */
-  ros::NodeHandle nh_;
+  rclcpp::Node::SharedPtr nh_;
+
+  /**
+   * @brief Executor handling the node's nh_ callbacks.
+   */
+  std::shared_ptr<rclcpp::executors::MultiThreadedExecutor> executor_;
 
   /**
    * @brief Pointer to the current trajectory point.
@@ -412,27 +417,27 @@ protected:
   /**
    * @brief Unscaled joint state messages.
    */
-  sensor_msgs::JointState new_joint_state_unscaled_;
+  sensor_msgs::msg::JointState new_joint_state_unscaled_;
 
   /**
    * @brief Joint state message.
    */
-  sensor_msgs::JointState new_joint_state_;
+  sensor_msgs::msg::JointState new_joint_state_;
 
   /**
    * @brief Message representing the updated current planning scene get from MoveIt service.
    */
-  moveit_msgs::PlanningScene planning_scene_msg_;
+  moveit_msgs::msg::PlanningScene planning_scene_msg_;
 
   /**
    * @brief Message representing the updated differential planning scene get from MoveIt service.
    */
-  moveit_msgs::PlanningScene planning_scene_diff_msg_;
+  moveit_msgs::msg::PlanningScene planning_scene_diff_msg_;
 
   /**
    * @brief Message representing the planning scene used by the benchmarking thread.
    */
-  moveit_msgs::PlanningScene planning_scene_msg_benchmark_;
+  moveit_msgs::msg::PlanningScene planning_scene_msg_benchmark_;
 
   /**
    * @brief Type of objects to be spawned. Deault: "sphere".
@@ -485,6 +490,11 @@ protected:
   std::thread replanning_thread_;
 
   /**
+   * @brief Thread running the node's executor spin loop.
+   */
+  std::thread executor_thread_;
+
+  /**
    * @brief Mutex for synchronizing access to the trajectory data.
    */
   std::mutex trj_mtx_;
@@ -522,7 +532,7 @@ protected:
   /**
    * @brief Vector of subscription notifiers for scaling topics.
    */
-  std::vector<std::shared_ptr<ros_helper::SubscriptionNotifier<std_msgs::Int64>>> scaling_topics_vector_;
+  std::vector<rclcpp::Subscription<std_msgs::msg::Int64>::SharedPtr> scaling_topics_vector_;
 
   /**
    * @brief Map of scaling overrides by topic name.
@@ -532,22 +542,22 @@ protected:
   /**
    * @brief ROS publisher for joint target states.
    */
-  ros::Publisher target_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr target_pub_;
 
   /**
    * @brief ROS publisher for object poses.
    */
-  ros::Publisher obj_pose_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr obj_pose_pub_;
 
   /**
    * @brief ROS publisher for text overlays in RViz. Subscribes topic "/rviz_text_overlay_replanner_bench".
    */
-  ros::Publisher text_overlay_pub_;
+  rclcpp::Publisher<rviz_2d_overlay_msgs::msg::OverlayText>::SharedPtr text_overlay_pub_;
 
   /**
    * @brief ROS publisher for unscaled joint target states.
    */
-  ros::Publisher unscaled_target_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr unscaled_target_pub_;
 
   /**
    * @brief Topic name for obstacle poses. Default: "/poses".
@@ -572,22 +582,22 @@ protected:
   /**
    * @brief ROS service client for adding objects to the scene.
    */
-  ros::ServiceClient add_obj_;
+  rclcpp::Client<cnr_scene_manager_msgs::srv::AddObjects>::SharedPtr add_obj_;
 
   /**
    * @brief ROS service client for moving objects in the scene.
    */
-  ros::ServiceClient move_obj_;
+  rclcpp::Client<cnr_scene_manager_msgs::srv::MoveObjects>::SharedPtr move_obj_;
 
   /**
    * @brief ROS service client for removing objects from the scene.
    */
-  ros::ServiceClient remove_obj_;
+  rclcpp::Client<cnr_scene_manager_msgs::srv::RemoveObjects>::SharedPtr remove_obj_;
 
   /**
    * @brief ROS service client for getting the planning scene upates from MoveIt.
    */
-  ros::ServiceClient plannning_scene_client_;
+  rclcpp::Client<moveit_msgs::srv::GetPlanningScene>::SharedPtr plannning_scene_client_;
 
   /**
    * @brief Subscribes to necessary ROS topics and services.
@@ -725,10 +735,10 @@ protected:
    * The overall scaling factor is calculated as the product of the overrides published on the topics listed in 'scaling_topics_names_'.
    * This scaling factor is used to adjust the robot's trajectory if 'read_safe_scaling_' is enabled.
    *
-   * @param msg The message received from the topic containing the scaling value.
+   * @param msg The pointer to the message received from the topic containing the scaling value.
    * @param override_name The name of the specific override parameter being updated.
    */
-  virtual void overrideCallback(const std_msgs::Int64ConstPtr& msg, const std::string& override_name);
+  virtual void overrideCallback(const std_msgs::msg::Int64::SharedPtr msg, const std::string& override_name);
 
   /**
    * @brief Performs forward kinematics to calculate the position (x,y,z) of the 'last_link'.
@@ -743,7 +753,7 @@ protected:
    */
   Eigen::Vector3d forwardIk(const Eigen::VectorXd& conf, const std::string& last_link, const planning_scene::PlanningScenePtr& planning_scene);
   Eigen::Vector3d forwardIk(const Eigen::VectorXd& conf, const std::string& last_link, const planning_scene::PlanningScenePtr& planning_scene,
-                            geometry_msgs::Pose& pose);
+                            geometry_msgs::msg::Pose& pose);
 
   /**
    * @brief Pure virtual function to initialize the replanner.

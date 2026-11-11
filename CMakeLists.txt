@@ -43,7 +43,7 @@ target_include_directories(${PROJECT_NAME}
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>)
-ament_target_dependencies(${PROJECT_NAME} PUBLIC rclcpp graph_display cnr_scene_manager_msgs moveit_collision_checker rviz_2d_overlay_msgs)
+target_link_libraries(${PROJECT_NAME} PUBLIC ${rclcpp_TARGETS} ${graph_display_TARGETS} ${cnr_scene_manager_msgs_TARGETS} ${moveit_collision_checker_TARGETS} ${rviz_2d_overlay_msgs_TARGETS})
 
 ament_export_targets(${PROJECT_NAME}Targets HAS_LIBRARY_TARGET) # exports the targets for CMake, to allow your library’s clients to use the target_link_libraries(client my_library::my_library) syntax.
 ament_export_dependencies(rclcpp graph_display cnr_scene_manager_msgs moveit_collision_checker replanners_lib trajectories_processors_lib rviz_2d_overlay_msgs)

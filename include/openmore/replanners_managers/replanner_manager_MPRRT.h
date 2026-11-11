@@ -59,8 +59,8 @@ protected:
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  ReplannerManagerMPRRT(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver, const std::string& param_ns,
-                        const TraceLoggerPtr& logger);
+  ReplannerManagerMPRRT(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver, const ParamMap& params,
+                        const LoggerPtr& logger);
 
   void startReplannedPathFromNewCurrentConf(const Eigen::VectorXd& configuration) override;
 };

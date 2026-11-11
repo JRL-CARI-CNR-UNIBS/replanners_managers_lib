@@ -49,6 +49,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cnr_scene_manager_msgs/srv/move_objects.hpp>
 #include <cnr_scene_manager_msgs/srv/remove_objects.hpp>
 
+#include <graph_core/logger.h>
+#include <graph_core/params.h>
 #include <graph_display/graph_display.h>
 #include <openmore/replanners/replanner_base.h>
 #include <openmore/trajectories_processors/trajectory_processor_base.h>
@@ -56,8 +58,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace openmore
 {
-using namespace cnr_logger;
 using namespace graph::core;
+using namespace graph::core::color;  // RESET(), GREEN(), ... for log messages
 using namespace graph::display;
 using namespace graph::collision_check;
 using TrajectoryPtr = TrajectoryProcessorBasePtr;

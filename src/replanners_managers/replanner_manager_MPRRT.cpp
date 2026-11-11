@@ -38,8 +38,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace openmore
 {
 ReplannerManagerMPRRT::ReplannerManagerMPRRT(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver,
-                                             const std::string& param_ns, const TraceLoggerPtr& logger)
-  : ReplannerManagerBase(current_path, trajectory_processor, solver, param_ns, logger)
+                                             const ParamMap& params, const LoggerPtr& logger)
+  : ReplannerManagerBase(current_path, trajectory_processor, solver, params, logger)
 {
   RRTPtr tmp_solver = std::make_shared<RRT>(solver_->getMetrics(), checker_replanning_, solver_->getSampler(), logger_);
   tmp_solver->importFromSolver(solver);
@@ -53,11 +53,11 @@ void ReplannerManagerMPRRT::additionalParams()
 {
   unsigned int default_n_threads = 5;
 
-  if (get_param(logger_, param_ns_, "MPRRT/n_threads_replan", n_threads_replan_, default_n_threads))
+  if (get_param(logger_, params_, "MPRRT/n_threads_replan", n_threads_replan_, default_n_threads))
   {
     if (n_threads_replan_ < 1)
     {
-      CNR_ERROR(logger_, "n_threads_replan can not be less than 1, set 1");
+      GC_ERROR(logger_, "n_threads_replan can not be less than 1, set 1");
       n_threads_replan_ = 1;
     }
   }

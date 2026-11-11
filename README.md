@@ -14,7 +14,25 @@ It also leverages [MoveIt](https://moveit.ros.org/) for planning scene tracking 
 
 ## ROS Compatibility
 
-`replanners_managers_lib` is the only `OpenMORE` package that depends on ROS. Currently, it is tested on ROS Noetic, with ongoing work to support ROS 2 Humble. Follow the [`OpenMORE`](https://github.com/JRL-CARI-CNR-UNIBS/OpenMORE) installation guide for setup instructions.
+`replanners_managers_lib` is the only `OpenMORE` package that depends on ROS. This branch targets ROS 2 (Jazzy); the `master` branch targets ROS Noetic. Follow the [`OpenMORE`](https://github.com/JRL-CARI-CNR-UNIBS/OpenMORE) installation guide for setup instructions.
+
+## Logging and parameters
+
+The managers log through a `graph::core::LoggerPtr` and read their parameters from a `graph::core::ParamMap` (see `graph_core/logger.h` and `graph_core/params.h`). Nested parameters use `/` as separator, e.g. `virtual_obj/spawn_objs` or `MARS/full_net_search`.
+
+In a ROS 2 node, `openmore/replanners_managers/graph_core_ros.h` provides:
+- `openmore::RclcppGraphLogger`, which writes graph_core messages to an `rclcpp::Logger`;
+- `openmore::graphParamsFromNode(node, prefix)`, which reads the node parameters under `prefix` into a `ParamMap` (ROS 2 `.` levels become `/`).
+
+```cpp
+#include <openmore/replanners_managers/graph_core_ros.h>
+#include <openmore/replanners_managers/replanner_manager_DRRT.h>
+
+graph::core::LoggerPtr logger = std::make_shared<openmore::RclcppGraphLogger>(node->get_logger());
+graph::core::ParamMap params = openmore::graphParamsFromNode(node, "replanner");  // e.g. replanner.dt_replan, replanner.MARS.full_net_search
+
+auto manager = std::make_shared<openmore::ReplannerManagerDRRT>(path, trajectory_processor, solver, params, logger);
+```
 
 ## Concepts
 

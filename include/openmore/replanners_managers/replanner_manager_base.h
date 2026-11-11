@@ -129,14 +129,14 @@ protected:
   TreeSolverPtr solver_;
 
   /**
-   * @brief Namespace for accessing parameters using the cnr_param library.
+   * @brief Parameters of the manager. Nested keys are joined with '/', e.g. "virtual_obj/spawn_objs", "MARS/full_net_search".
    */
-  std::string param_ns_;
+  ParamMap params_;
 
   /**
-   * @brief Pointer to the cnr_logger logger for tracing and debugging.
+   * @brief Logger for tracing and debugging (see graph_core/logger.h); it can be null.
    */
-  TraceLoggerPtr logger_;
+  LoggerPtr logger_;
 
   /* Global variables */
 
@@ -618,10 +618,10 @@ protected:
   virtual bool replan();
 
   /**
-   * @brief Reads and initializes parameters using the cnr_param library.
+   * @brief Reads and initializes parameters from params_.
    *
-   * This method retrieves various parameters required by the replanner through the cnr_param library,
-   * setting up internal variables based on these values. Parameters are read from the namespace specified by 'param_ns_'.
+   * This method retrieves various parameters required by the replanner from params_,
+   * setting up internal variables based on these values.
    */
   virtual void fromParam();
 
@@ -833,17 +833,17 @@ public:
    * @brief Initializes the ReplannerManagerBase with given parameters.
    *
    * This constructor initializes the manager with the current path, trajectory processor,
-   * solver, parameter namespace, and logger.
-   * It reads the required parameters under the provided namespace and sets up necessary ROS topics and services.
+   * solver, parameters, and logger.
+   * It reads the required parameters from params and sets up necessary ROS topics and services.
    *
    * @param current_path The current robot path to be used.
    * @param trajectory_processor The trajectory processor to be used, e.g the algorithm to compute the timing-law given a path.
    * @param solver The solver to be used, usually required by the path replanning algorithm.
-   * @param param_ns The namespace for parameters.
+   * @param params The parameters of the manager (see graphParamsFromNode() in graph_core_ros.h to read them from a ROS 2 node).
    * @param logger The logger to be used.
    */
-  ReplannerManagerBase(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver, const std::string& param_ns,
-                       const TraceLoggerPtr& logger);
+  ReplannerManagerBase(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver, const ParamMap& params,
+                       const LoggerPtr& logger);
 
   /**
    * @brief Destructor for ReplannerManagerBase.

@@ -38,8 +38,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace openmore
 {
 ReplannerManagerDRRT::ReplannerManagerDRRT(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver,
-                                           const std::string& param_ns, const TraceLoggerPtr& logger)
-  : ReplannerManagerBase(current_path, trajectory_processor, solver, param_ns, logger)
+                                           const ParamMap& params, const LoggerPtr& logger)
+  : ReplannerManagerBase(current_path, trajectory_processor, solver, params, logger)
 {
   RRTPtr tmp_solver = std::make_shared<RRT>(solver_->getMetrics(), checker_replanning_, solver_->getSampler(), logger_);
   tmp_solver->importFromSolver(solver);
@@ -98,9 +98,9 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     }
     catch (...)
     {
-      CNR_DEBUG(logger_, "replanned_path_start conf:  " << replanned_path_start->getConfiguration().transpose());
+      GC_DEBUG(logger_, "replanned_path_start conf:  " << replanned_path_start->getConfiguration().transpose());
       for (const Eigen::VectorXd& wp : current_path_copy->getWaypoints())
-        CNR_DEBUG(logger_, "CURRENT PATH COPY WP: " << wp.transpose());
+        GC_DEBUG(logger_, "CURRENT PATH COPY WP: " << wp.transpose());
     }
 
     new_tree_branch = new_tree_branch->getSubpathFromConf(configuration, false);
@@ -114,7 +114,7 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
       if ((current_node->getConfiguration() - configuration).norm() < 1e-06)
         return true;
 
-      CNR_ERROR(logger_, "\ncurrent_node conf: " << current_node->getConfiguration().transpose() << "\nconfiguration: " << configuration.transpose());
+      GC_ERROR(logger_, "\ncurrent_node conf: " << current_node->getConfiguration().transpose() << "\nconfiguration: " << configuration.transpose());
       return false;
     }());
 
@@ -130,12 +130,12 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     new_tree_branch_connections.at(0) = new_conn;
 
     if (not tree->addBranch(new_tree_branch_connections))
-      CNR_ERROR(logger_, "Branch from current node not added to the replanned tree");
+      GC_ERROR(logger_, "Branch from current node not added to the replanned tree");
 
     assert(tree->isInTree(current_node));
 
     if (not tree->changeRoot(current_node))
-      CNR_ERROR(logger_, "Root can't be changed to current node");
+      GC_ERROR(logger_, "Root can't be changed to current node");
 
     path_connections = tree->getConnectionToNode(goal);
     replanned_path->setConnections(path_connections);
@@ -172,7 +172,7 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
       assert(tree->isInTree(current_node));
 
       if (not tree->changeRoot(current_node))
-        CNR_ERROR(logger_, "Root can't be changed to current node");
+        GC_ERROR(logger_, "Root can't be changed to current node");
 
       path_connections = tree->getConnectionToNode(goal);
       replanned_path->setConnections(path_connections);
@@ -181,16 +181,16 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     }
     else
     {
-      CNR_DEBUG(logger_, "no conn");
+      GC_DEBUG(logger_, "no conn");
       try
       {
         new_tree_branch = current_path_copy->getSubpathToConf(configuration, false);
       }
       catch (...)
       {
-        CNR_DEBUG(logger_, "rconfiguration:  " << configuration.transpose());
+        GC_DEBUG(logger_, "rconfiguration:  " << configuration.transpose());
         for (const Eigen::VectorXd& wp : current_path_copy->getWaypoints())
-          CNR_DEBUG(logger_, "CURRENT PATH COPY WP: " << wp.transpose());
+          GC_DEBUG(logger_, "CURRENT PATH COPY WP: " << wp.transpose());
       }
 
       new_tree_branch = new_tree_branch->getSubpathFromConf(replanned_path_start->getConfiguration(), false);
@@ -251,11 +251,11 @@ void ReplannerManagerDRRT::startReplannedPathFromNewCurrentConf(const Eigen::Vec
       current_node = new_tree_branch_connections.back()->getChild();
 
       if (not tree->addBranch(new_tree_branch_connections))
-        CNR_ERROR(logger_, "Branch from current node not added to the replanned tree");
+        GC_ERROR(logger_, "Branch from current node not added to the replanned tree");
 
       assert(tree->isInTree(current_node));
       if (not tree->changeRoot(current_node))
-        CNR_ERROR(logger_, "Root can't be changed to current node");
+        GC_ERROR(logger_, "Root can't be changed to current node");
 
       path_connections = tree->getConnectionToNode(goal);
       replanned_path->setConnections(path_connections);

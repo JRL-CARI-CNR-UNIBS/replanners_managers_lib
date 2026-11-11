@@ -9,18 +9,18 @@
 
 int main(int argc, char** argv)
 {
-  // Load the logger's configuration
-  std::string path_to_config_folder = "path/to/config/folder";
-  std::string logger_file = path_to_config_folder + "/logger_param.yaml";
-  cnr_logger::TraceLoggerPtr logger = std::make_shared<cnr_logger::TraceLogger>("openmore_tutorial_loggers", logger_file);
+  // Logger (see graph_core/logger.h)
+  graph::core::LoggerPtr logger = std::make_shared<graph::core::ConsoleLogger>("openmore_tutorial", graph::core::LogLevel::Info);
 
-  // Define namespace for parameters retrieving
-  std::string param_ns = "/openmore_tutorial";  // must begin with "/"
+  // Parameters under "openmore_tutorial" in a YAML file (see graph_core/params.h)
+  std::string path_to_config_folder = "path/to/config/folder";
+  graph::core::ParamMap params =
+      graph::core::paramsFromYAML(YAML::LoadFile(path_to_config_folder + "/params.yaml")["openmore_tutorial"]);
 
   // Define the collision checker (foo collision checker)
   double min_cc_distance;
   double default_min_cc_distance = 0.01;
-  graph::core::get_param(logger, param_ns, "min_cc_distance", min_cc_distance, min_cc_distance);  // wrapper to cnr_param functions
+  graph::core::get_param(logger, params, "min_cc_distance", min_cc_distance, default_min_cc_distance);
 
   if (min_cc_distance <= 0)
     min_cc_distance = default_min_cc_distance;
@@ -54,8 +54,8 @@ int main(int argc, char** argv)
   goal_configuration << 1.5, 1.5, 1.5;
 
   // Optionally, you can load these directly from params
-  // graph::core::get_param(logger,param_ns,"start_configuration",start_configuration);
-  // graph::core::get_param(logger,param_ns,"goal_configuration",goal_configuration)
+  // graph::core::get_param(logger, params, "start_configuration",start_configuration);
+  // graph::core::get_param(logger, params, "goal_configuration",goal_configuration)
 
   graph::core::NodePtr start_node = std::make_shared<graph::core::Node>(start_configuration, logger);
   graph::core::NodePtr goal_node = std::make_shared<graph::core::Node>(goal_configuration, logger);
@@ -65,13 +65,13 @@ int main(int argc, char** argv)
   size_t max_iter = 1000000;
   graph::core::PathPtr initial_path;
 
-  bool found = solver->computePath(start_node, goal_node, param_ns, initial_path, max_time, max_iter);
+  bool found = solver->computePath(start_node, goal_node, params, initial_path, max_time, max_iter);
 
   if (found)
-    CNR_INFO(logger, "Path found! Cost: " << initial_path->cost());
+    GC_INFO(logger, "Path found! Cost: " << initial_path->cost());
   else
   {
-    CNR_ERROR(logger, "Initial path not found!");
+    GC_ERROR(logger, "Initial path not found!");
     return 0;
   }
 
@@ -82,7 +82,7 @@ int main(int argc, char** argv)
   initial_path->setCollisionChecker(new_obs_collision_checker);
   initial_path->isValid();
 
-  CNR_INFO(logger, "Updated path's cost: " << initial_path->cost());
+  GC_INFO(logger, "Updated path's cost: " << initial_path->cost());
 
   // Create a replanner object
   graph::core::TreeSolverPtr replanning_solver = std::make_shared<graph::core::RRT>(metrics, new_obs_collision_checker, sampler, logger);
@@ -100,9 +100,9 @@ int main(int argc, char** argv)
   double elapsed_time = graph::core::toSeconds(toc, tic);
 
   if (success)
-    CNR_INFO(logger, "New path found in " << elapsed_time << " seconds. Cost: " << replanner->getReplannedPath()->cost());
+    GC_INFO(logger, "New path found in " << elapsed_time << " seconds. Cost: " << replanner->getReplannedPath()->cost());
   else
-    CNR_ERROR(logger, "No valid path found in " << elapsed_time << " seconds.");
+    GC_ERROR(logger, "No valid path found in " << elapsed_time << " seconds.");
 
   return 0;
 }

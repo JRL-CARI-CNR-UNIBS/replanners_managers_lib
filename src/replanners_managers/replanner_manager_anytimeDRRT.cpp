@@ -38,8 +38,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace openmore
 {
 ReplannerManagerAnytimeDRRT::ReplannerManagerAnytimeDRRT(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver,
-                                                         const std::string& param_ns, const TraceLoggerPtr& logger)
-  : ReplannerManagerDRRT(current_path, trajectory_processor, solver, param_ns, logger)
+                                                         const ParamMap& params, const LoggerPtr& logger)
+  : ReplannerManagerDRRT(current_path, trajectory_processor, solver, params, logger)
 {
   AnytimeRRTPtr tmp_solver = std::make_shared<AnytimeRRT>(solver_->getMetrics(), checker_replanning_, solver_->getSampler(), logger_);
   tmp_solver->importFromSolver(solver);

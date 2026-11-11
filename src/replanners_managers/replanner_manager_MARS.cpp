@@ -38,15 +38,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace openmore
 {
 ReplannerManagerMARS::ReplannerManagerMARS(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver,
-                                           const std::string& param_ns, const TraceLoggerPtr& logger)
-  : ReplannerManagerBase(current_path, trajectory_processor, solver, param_ns, logger)
+                                           const ParamMap& params, const LoggerPtr& logger)
+  : ReplannerManagerBase(current_path, trajectory_processor, solver, params, logger)
 {
   ReplannerManagerMARS::MARSadditionalParams();
 }
 
 ReplannerManagerMARS::ReplannerManagerMARS(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver,
-                                           const std::string& param_ns, const TraceLoggerPtr& logger, const std::vector<PathPtr>& other_paths)
-  : ReplannerManagerMARS(current_path, trajectory_processor, solver, param_ns, logger)
+                                           const ParamMap& params, const LoggerPtr& logger, const std::vector<PathPtr>& other_paths)
+  : ReplannerManagerMARS(current_path, trajectory_processor, solver, params, logger)
 {
   other_paths_ = other_paths;
   if (replanner_)
@@ -58,10 +58,10 @@ ReplannerManagerMARS::ReplannerManagerMARS(const PathPtr& current_path, const Tr
 
 void ReplannerManagerMARS::MARSadditionalParams()
 {
-  get_param(logger_, param_ns_, "MARS/reverse_start_nodes", reverse_start_nodes_, false);
-  get_param(logger_, param_ns_, "MARS/full_net_search", full_net_search_, true);
-  get_param(logger_, param_ns_, "MARS/verbosity_level", verbosity_level_, 0);
-  get_param(logger_, param_ns_, "MARS/display_other_paths", display_other_paths_, true);
+  get_param(logger_, params_, "MARS/reverse_start_nodes", reverse_start_nodes_, false);
+  get_param(logger_, params_, "MARS/full_net_search", full_net_search_, true);
+  get_param(logger_, params_, "MARS/verbosity_level", verbosity_level_, 0);
+  get_param(logger_, params_, "MARS/display_other_paths", display_other_paths_, true);
 }
 
 void ReplannerManagerMARS::attributeInitialization()
@@ -153,9 +153,9 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
   TreePtr tree = current_path->getTree();
 
-  CNR_DEBUG(logger_, RESET() << BW() << "REPLANNED PATH\n" << *replanned_path);
+  GC_DEBUG(logger_, RESET() << BOLDWHITE() << "REPLANNED PATH\n" << *replanned_path);
 
-  CNR_DEBUG(logger_, RESET() << BR() << "CURRENT PATH\n" << *current_path);
+  GC_DEBUG(logger_, RESET() << BOLDRED() << "CURRENT PATH\n" << *current_path);
 
   assert(current_path->findConnection(configuration) != nullptr);
 
@@ -178,13 +178,13 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
           else
           {
             for (const ConnectionPtr c : old_current_node_->getParentConnections())
-              CNR_INFO(logger_, "parent conn " << *c);
+              GC_INFO(logger_, "parent conn " << *c);
 
             for (const ConnectionPtr c : old_current_node_->getNetParentConnections())
-              CNR_INFO(logger_, "net parent conn " << *c);
+              GC_INFO(logger_, "net parent conn " << *c);
 
-            CNR_INFO(logger_, "current path " << *current_path);
-            CNR_INFO(logger_, "old current node " << *old_current_node_ << old_current_node_);
+            GC_INFO(logger_, "current path " << *current_path);
+            GC_INFO(logger_, "old current node " << *old_current_node_ << old_current_node_);
 
             return false;
           }
@@ -216,7 +216,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
             assert(not tree->isInTree(old_current_node_));
           }
 
-          CNR_DEBUG(logger_, RESET() << BC() << "OLD CURRENT NODE REMOVED");
+          GC_DEBUG(logger_, RESET() << BOLDCYAN() << "OLD CURRENT NODE REMOVED");
         }
       }
     }
@@ -232,14 +232,14 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     if ((current_node == node_replan && ((configuration - node_replan->getConfiguration()).norm() > TOLERANCE)) ||
         (current_node != node_replan && ((configuration - node_replan->getConfiguration()).norm() <= TOLERANCE)))
     {
-      CNR_INFO(logger_, "current node: " << current_node << " " << *current_node);
-      CNR_INFO(logger_, "is a new node: " << is_a_new_node);
-      CNR_INFO(logger_, "replan node: " << node_replan << " " << *node_replan);
-      CNR_INFO(logger_, "conn: " << *conn);
-      CNR_INFO(logger_, "conf: " << configuration.transpose());
-      CNR_INFO(logger_, "TOLERANCE: " << TOLERANCE << " norm: " << (configuration - node_replan->getConfiguration()).norm());
-      CNR_INFO(logger_, "curr p:" << *current_path);
-      CNR_INFO(logger_, "tmp p: " << *tmp_p);
+      GC_INFO(logger_, "current node: " << current_node << " " << *current_node);
+      GC_INFO(logger_, "is a new node: " << is_a_new_node);
+      GC_INFO(logger_, "replan node: " << node_replan << " " << *node_replan);
+      GC_INFO(logger_, "conn: " << *conn);
+      GC_INFO(logger_, "conf: " << configuration.transpose());
+      GC_INFO(logger_, "TOLERANCE: " << TOLERANCE << " norm: " << (configuration - node_replan->getConfiguration()).norm());
+      GC_INFO(logger_, "curr p:" << *current_path);
+      GC_INFO(logger_, "tmp p: " << *tmp_p);
 
       tmp_p->findConnection(configuration, conn_idx, true);
 
@@ -274,39 +274,39 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
     if (distance == 0)
     {
-      CNR_DEBUG(logger_, RESET() << BC() << "DISTANCE ZERO");
+      GC_DEBUG(logger_, RESET() << BOLDCYAN() << "DISTANCE ZERO");
 
       if (node_replan != current_node)
         throw std::runtime_error("should be the same node");
     }
     else if (distance < 0)  // replan node before current node on current path
     {
-      CNR_DEBUG(logger_, RESET() << BC() << "DISTANCE <0");
+      GC_DEBUG(logger_, RESET() << BOLDCYAN() << "DISTANCE <0");
 
       size_t idx;
       ConnectionPtr current_conn = replanned_path->findConnection(configuration, idx, true);
       if (current_conn != nullptr)  // current node is on replanned path
       {
-        CNR_DEBUG(logger_, RESET() << BC() << "\t -> CASE 1");
+        GC_DEBUG(logger_, RESET() << BOLDCYAN() << "\t -> CASE 1");
 
         if (current_conn->getParent() == current_node || current_conn->getChild() == current_node)
         {
-          CNR_DEBUG(logger_, RESET() << BC() << "\t -> CASE 1.1");
+          GC_DEBUG(logger_, RESET() << BOLDCYAN() << "\t -> CASE 1.1");
 
           replanned_path->setConnections(replanned_path->getSubpathFromNode(current_node)->getConnections());
         }
         else
         {
-          CNR_DEBUG(logger_, RESET() << BC() << "\t -> CASE 1.2");
+          GC_DEBUG(logger_, RESET() << BOLDCYAN() << "\t -> CASE 1.2");
 
           if (conn != current_conn)
           {
-            CNR_INFO(logger_, "conf " << configuration.transpose());
-            CNR_INFO(logger_, "conn " << *conn << "\n" << conn);
-            CNR_INFO(logger_, "current_conn " << *current_conn << "\n" << current_conn);
+            GC_INFO(logger_, "conf " << configuration.transpose());
+            GC_INFO(logger_, "conn " << *conn << "\n" << conn);
+            GC_INFO(logger_, "current_conn " << *current_conn << "\n" << current_conn);
 
-            CNR_INFO(logger_, RESET() << BOLDBLUE() << "CURRENT PATH " << *current_path << RESET());
-            CNR_INFO(logger_, RESET() << BOLDBLUE() << "REPLANNED PATH " << *replanned_path << RESET());
+            GC_INFO(logger_, RESET() << BOLDBLUE() << "CURRENT PATH " << *current_path << RESET());
+            GC_INFO(logger_, RESET() << BOLDBLUE() << "REPLANNED PATH " << *replanned_path << RESET());
 
             stop_ = true;
             if (not display_thread_.joinable())
@@ -330,14 +330,14 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
 
           if (not replanned_path->splitConnection(current_path->getConnectionsConst().at(conn_idx), current_path->getConnectionsConst().at(conn_idx + 1),
                                                   current_conn))
-            CNR_DEBUG(logger_, RESET() << BOLDBLUE() << "CONNECTION NOT SPLITTED" << RESET());
+            GC_DEBUG(logger_, RESET() << BOLDBLUE() << "CONNECTION NOT SPLITTED" << RESET());
 
           replanned_path->setConnections(replanned_path->getSubpathFromNode(current_node)->getConnections());
         }
       }
       else
       {
-        CNR_DEBUG(logger_, RESET() << BC() << "\t -> CASE 2");
+        GC_DEBUG(logger_, RESET() << BOLDCYAN() << "\t -> CASE 2");
 
         // current node should be very close to replan node, minimal difference between the connections
 
@@ -360,26 +360,26 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
     }
     else  // distance>0 //replan node after current node on current path
     {
-      CNR_DEBUG(logger_, RESET() << BC() << "DISTANCE > 0");
+      GC_DEBUG(logger_, RESET() << BOLDCYAN() << "DISTANCE > 0");
 
       assert(current_node != node_replan);
       assert((current_node->getConfiguration() - node_replan->getConfiguration()).norm() > TOLERANCE);
 
       PathPtr tmp_subpath;
       tmp_subpath = current_path->getSubpathFromNode(current_node);
-      CNR_DEBUG(logger_, RESET() << BC() << "subpath from current node \n" << *tmp_subpath);
+      GC_DEBUG(logger_, RESET() << BOLDCYAN() << "subpath from current node \n" << *tmp_subpath);
 
       try
       {
         tmp_subpath = tmp_subpath->getSubpathToNode(node_replan);
-        CNR_DEBUG(logger_, RESET() << BC() << "subpath from current node to node replan \n" << *tmp_subpath);
+        GC_DEBUG(logger_, RESET() << BOLDCYAN() << "subpath from current node to node replan \n" << *tmp_subpath);
       }
       catch (...)
       {
-        CNR_INFO(logger_, "current path: " << *current_path);  // elimina
-        CNR_INFO(logger_, "tmp subpath: " << *tmp_subpath);    // elimina
-        CNR_INFO(logger_, "current node: " << current_node << " " << *current_node);
-        CNR_INFO(logger_, "node_replan : " << node_replan << " " << *node_replan);
+        GC_INFO(logger_, "current path: " << *current_path);  // elimina
+        GC_INFO(logger_, "tmp subpath: " << *tmp_subpath);    // elimina
+        GC_INFO(logger_, "current node: " << current_node << " " << *current_node);
+        GC_INFO(logger_, "node_replan : " << node_replan << " " << *node_replan);
         throw std::runtime_error("runtime err");
       }
       std::vector<ConnectionPtr> new_conns = tmp_subpath->getConnections();
@@ -387,15 +387,15 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
       new_conns.insert(new_conns.end(), replanned_path->getConnectionsConst().begin(), replanned_path->getConnectionsConst().end());
       replanned_path->setConnections(new_conns);
 
-      CNR_DEBUG(logger_, RESET() << BC() << "NEW PATH\n" << *replanned_path);
+      GC_DEBUG(logger_, RESET() << BOLDCYAN() << "NEW PATH\n" << *replanned_path);
 
       if (old_current_node_ != nullptr)
       {
         std::vector<NodePtr> pn = replanned_path->getNodes();
         if (std::find(pn.begin(), pn.end(), old_current_node_) >= pn.end())
         {
-          CNR_INFO(logger_, "rp " << *replanned_path);
-          CNR_INFO(logger_, "old cur node " << *old_current_node_ << old_current_node_);
+          GC_INFO(logger_, "rp " << *replanned_path);
+          GC_INFO(logger_, "old cur node " << *old_current_node_ << old_current_node_);
 
           throw std::runtime_error("error");
         }
@@ -420,7 +420,7 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
             std::vector<NodePtr> p_nodes = p->getNodes();
             if (std::find(p_nodes.begin(), p_nodes.end(), node_replan) < p_nodes.end())
             {
-              CNR_INFO(logger_, "other path: " << *p);
+              GC_INFO(logger_, "other path: " << *p);
               return false;
             }
             else
@@ -439,9 +439,9 @@ void ReplannerManagerMARS::startReplannedPathFromNewCurrentConf(const Eigen::Vec
         {
           for (const NodePtr& nn : replanned_path->getNodes())
           {
-            CNR_INFO(logger_, nn << " " << *nn);
+            GC_INFO(logger_, nn << " " << *nn);
           }
-          CNR_INFO(logger_, *replanned_path);
+          GC_INFO(logger_, *replanned_path);
 
           return false;
         }
@@ -595,7 +595,7 @@ void ReplannerManagerMARS::collisionCheckThread()
 
     if (future.wait_for(std::chrono::seconds(5)) != std::future_status::ready || !future.valid())
     {
-      CNR_ERROR(logger_, "call to planning scene srv not ok");
+      GC_ERROR(logger_, "call to planning scene srv not ok");
       stop_ = true;
       break;
     }
@@ -689,12 +689,12 @@ void ReplannerManagerMARS::collisionCheckThread()
     double duration = toSeconds(graph_time::now(), tic);
 
     if (duration > (1.0 / collision_checker_thread_frequency_) && display_timing_warning_)
-      CNR_INFO(logger_, RESET() << BOLDYELLOW() << "Collision checking thread time expired: total duration-> " << duration << RESET());
+      GC_INFO(logger_, RESET() << BOLDYELLOW() << "Collision checking thread time expired: total duration-> " << duration << RESET());
 
     lp.sleep();
   }
 
-  CNR_INFO(logger_, RESET() << BOLDCYAN() << "Collision check thread is over" << RESET());
+  GC_INFO(logger_, RESET() << BOLDCYAN() << "Collision check thread is over" << RESET());
 }
 
 bool ReplannerManagerMARS::uploadPathsCost(const PathPtr& current_path_updated_copy, const std::vector<PathPtr>& other_paths_updated_copy)
@@ -720,15 +720,15 @@ bool ReplannerManagerMARS::uploadPathsCost(const PathPtr& current_path_updated_c
       assert([&] {
         if (current_path_conns.at(j)->getParent()->getConfiguration() != current_path_copy_conns.at(j)->getParent()->getConfiguration())
         {
-          CNR_ERROR(logger_, "current parent\n" << *current_path_conns.at(j)->getParent());
-          CNR_ERROR(logger_, "copied parent\n" << *current_path_copy_conns.at(j)->getParent());
+          GC_ERROR(logger_, "current parent\n" << *current_path_conns.at(j)->getParent());
+          GC_ERROR(logger_, "copied parent\n" << *current_path_copy_conns.at(j)->getParent());
           return false;
         }
 
         if (current_path_conns.at(j)->getChild()->getConfiguration() != current_path_copy_conns.at(j)->getChild()->getConfiguration())
         {
-          CNR_ERROR(logger_, "current child\n" << *current_path_conns.at(j)->getChild());
-          CNR_ERROR(logger_, "copied child\n" << *current_path_copy_conns.at(j)->getChild());
+          GC_ERROR(logger_, "current child\n" << *current_path_conns.at(j)->getChild());
+          GC_ERROR(logger_, "copied child\n" << *current_path_copy_conns.at(j)->getChild());
           return false;
         }
         return true;
@@ -740,7 +740,7 @@ bool ReplannerManagerMARS::uploadPathsCost(const PathPtr& current_path_updated_c
 
     if (current_path_shared_->getCostFromConf(current_configuration_) == std::numeric_limits<double>::infinity() &&
         (display_timing_warning_ || display_replanning_success_))
-      CNR_INFO(logger_, RESET() << BOLDMAGENTA() << "Obstacle detected!" << RESET());
+      GC_INFO(logger_, RESET() << BOLDMAGENTA() << "Obstacle detected!" << RESET());
 
     // Update other paths costs
     for (unsigned int i = 0; i < other_paths_updated_copy.size(); i++)
@@ -807,7 +807,7 @@ void ReplannerManagerMARS::displayOtherPaths()
   }
 
   disp->clearMarkers();
-  CNR_INFO(logger_, RESET() << BOLDCYAN() << "Display other paths thread is over" << RESET());
+  GC_INFO(logger_, RESET() << BOLDCYAN() << "Display other paths thread is over" << RESET());
 }
 
 void ReplannerManagerMARS::displayThread()

@@ -35,11 +35,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <openmore/replanners_managers/replanner_manager_base.h>
 
+#include <filesystem>
+#include <fstream>
+
 namespace openmore
 {
 ReplannerManagerBase::ReplannerManagerBase(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver,
-                                           const std::string& param_ns, const TraceLoggerPtr& logger)
-  : current_path_(current_path), trajectory_processor_(trajectory_processor), solver_(solver), param_ns_(param_ns), logger_(logger)
+                                           const ParamMap& params, const LoggerPtr& logger)
+  : current_path_(current_path), trajectory_processor_(trajectory_processor), solver_(solver), params_(params), logger_(logger)
 {
   nh_ = rclcpp::Node::make_shared("replanner_manager_internal_node");
   executor_ = std::make_shared<rclcpp::executors::MultiThreadedExecutor>(rclcpp::ExecutorOptions(), /*number_of_threads=*/4);
@@ -62,58 +65,58 @@ void ReplannerManagerBase::fromParam()
   unsigned int trj_freq_default = 500;
   unsigned int cc_freq_default = 100;
 
-  get_param(logger_, param_ns_, "trj_execution_thread_frequency", trj_exec_thread_frequency_, trj_freq_default);
-  get_param(logger_, param_ns_, "collision_checker_thread_frequency", collision_checker_thread_frequency_, cc_freq_default);
-  get_param(logger_, param_ns_, "dt_replan", dt_replan_, 0.100);
-  get_param(logger_, param_ns_, "checker_resolution", checker_resolution_, 0.05);
-  get_param(logger_, param_ns_, "read_safe_scaling", read_safe_scaling_, false);
-  get_param(logger_, param_ns_, "use_parallel_checker", use_parallel_checker_, true);
-  get_param(logger_, param_ns_, "replanning_enabled", replanning_enabled_, true);
+  get_param(logger_, params_, "trj_execution_thread_frequency", trj_exec_thread_frequency_, trj_freq_default);
+  get_param(logger_, params_, "collision_checker_thread_frequency", collision_checker_thread_frequency_, cc_freq_default);
+  get_param(logger_, params_, "dt_replan", dt_replan_, 0.100);
+  get_param(logger_, params_, "checker_resolution", checker_resolution_, 0.05);
+  get_param(logger_, params_, "read_safe_scaling", read_safe_scaling_, false);
+  get_param(logger_, params_, "use_parallel_checker", use_parallel_checker_, true);
+  get_param(logger_, params_, "replanning_enabled", replanning_enabled_, true);
 
   if (use_parallel_checker_)
   {
     unsigned int cc_n_threads_default = 4;
-    get_param(logger_, param_ns_, "parallel_checker_n_threads", parallel_checker_n_threads_, cc_n_threads_default);
+    get_param(logger_, params_, "parallel_checker_n_threads", parallel_checker_n_threads_, cc_n_threads_default);
   }
 
   if (read_safe_scaling_)
-    get_param(logger_, param_ns_, "overrides", scaling_topics_names_, { "/speed_ovr", "/safe_ovr_1", "/safe_ovr_2" });
+    get_param(logger_, params_, "overrides", scaling_topics_names_, { "/speed_ovr", "/safe_ovr_1", "/safe_ovr_2" });
 
-  if (get_param(logger_, param_ns_, "goal_tol", goal_tol_, 1.0e-06))
+  if (get_param(logger_, params_, "goal_tol", goal_tol_, 1.0e-06))
   {
     if (goal_tol_ < graph::core::TOLERANCE)
     {
       goal_tol_ = graph::core::TOLERANCE;
-      CNR_WARN(logger_, "goal_tol set equal to TOLERANCE (%f), it can't be less than that value", graph::core::TOLERANCE);
+      GC_WARN(logger_, "goal_tol set equal to TOLERANCE (" << graph::core::TOLERANCE << "), it can't be less than that value");
     }
   }
 
-  if (not get_param(logger_, param_ns_, "group_name", group_name_))
-    CNR_WARN(logger_, "group_name not set, maybe set later with setGroupName(..)?");
+  if (not get_param(logger_, params_, "group_name", group_name_))
+    GC_WARN(logger_, "group_name not set, maybe set later with setGroupName(..)?");
 
-  get_param(logger_, param_ns_, "joint_target_topic", joint_target_topic_, std::string("/joint_target_replanning"));
-  get_param(logger_, param_ns_, "unscaled_joint_target_topic", unscaled_joint_target_topic_, std::string("/unscaled_joint_target_replanning"));
-  get_param(logger_, param_ns_, "scaling", scaling_from_param_, 1.0);
-  get_param(logger_, param_ns_, "display_timing_warning", display_timing_warning_, false);
-  get_param(logger_, param_ns_, "display_replanning_success", display_replanning_success_, false);
-  get_param(logger_, param_ns_, "replanner_verbosity", replanner_verbosity_, false);
-  get_param(logger_, param_ns_, "display_replan_trj_point", display_replan_trj_point_, false);
-  get_param(logger_, param_ns_, "display_replan_config", display_replan_config_, true);
-  get_param(logger_, param_ns_, "display_current_trj_point", display_current_trj_point_, true);
-  get_param(logger_, param_ns_, "display_current_config", display_current_config_, true);
-  get_param(logger_, param_ns_, "which_link_display_path", which_link_display_path_, std::string("end_effector"));
-  get_param(logger_, param_ns_, "benchmark", benchmark_, false);
+  get_param(logger_, params_, "joint_target_topic", joint_target_topic_, std::string("/joint_target_replanning"));
+  get_param(logger_, params_, "unscaled_joint_target_topic", unscaled_joint_target_topic_, std::string("/unscaled_joint_target_replanning"));
+  get_param(logger_, params_, "scaling", scaling_from_param_, 1.0);
+  get_param(logger_, params_, "display_timing_warning", display_timing_warning_, false);
+  get_param(logger_, params_, "display_replanning_success", display_replanning_success_, false);
+  get_param(logger_, params_, "replanner_verbosity", replanner_verbosity_, false);
+  get_param(logger_, params_, "display_replan_trj_point", display_replan_trj_point_, false);
+  get_param(logger_, params_, "display_replan_config", display_replan_config_, true);
+  get_param(logger_, params_, "display_current_trj_point", display_current_trj_point_, true);
+  get_param(logger_, params_, "display_current_config", display_current_config_, true);
+  get_param(logger_, params_, "which_link_display_path", which_link_display_path_, std::string("end_effector"));
+  get_param(logger_, params_, "benchmark", benchmark_, false);
 
-  if (get_param(logger_, param_ns_, "virtual_obj/spawn_objs", spawn_objs_, false))
+  if (get_param(logger_, params_, "virtual_obj/spawn_objs", spawn_objs_, false))
   {
     spawn_instants_.clear();
-    get_param(logger_, param_ns_, "virtual_obj/spawn_instants", spawn_instants_, { 0.5 });
-    get_param(logger_, param_ns_, "virtual_obj/obj_type", obj_type_, std::string("sphere"));
-    get_param(logger_, param_ns_, "virtual_obj/obj_max_size", obj_max_size_, 0.05);
-    get_param(logger_, param_ns_, "virtual_obj/obj_vel", obj_vel_, 0.0);
-    get_param(logger_, param_ns_, "virtual_obj/dt_move", dt_move_, std::numeric_limits<double>::infinity());
-    get_param(logger_, param_ns_, "virtual_obj/moves_before_change_direction", direction_change_, std::numeric_limits<unsigned int>::max());
-    get_param(logger_, param_ns_, "virtual_obj/obs_pose_topic", obs_pose_topic_, std::string("/poses"));
+    get_param(logger_, params_, "virtual_obj/spawn_instants", spawn_instants_, { 0.5 });
+    get_param(logger_, params_, "virtual_obj/obj_type", obj_type_, std::string("sphere"));
+    get_param(logger_, params_, "virtual_obj/obj_max_size", obj_max_size_, 0.05);
+    get_param(logger_, params_, "virtual_obj/obj_vel", obj_vel_, 0.0);
+    get_param(logger_, params_, "virtual_obj/dt_move", dt_move_, std::numeric_limits<double>::infinity());
+    get_param(logger_, params_, "virtual_obj/moves_before_change_direction", direction_change_, std::numeric_limits<unsigned int>::max());
+    get_param(logger_, params_, "virtual_obj/obs_pose_topic", obs_pose_topic_, std::string("/poses"));
   }
 }
 
@@ -281,7 +284,7 @@ void ReplannerManagerBase::subscribeTopicsAndServices()
     scaling_topics_vector_.push_back(sub);
 
     overrides_.insert(std::make_pair(scaling_topic_name, 0.0));
-    CNR_INFO(logger_, "Subscribing speed override topic " << scaling_topic_name.c_str());
+    GC_INFO(logger_, "Subscribing speed override topic " << scaling_topic_name.c_str());
   }
 
   target_pub_ = nh_->create_publisher<sensor_msgs::msg::JointState>(joint_target_topic_, rclcpp::QoS(10));
@@ -305,19 +308,19 @@ void ReplannerManagerBase::subscribeTopicsAndServices()
 
     if (!add_obj_->wait_for_service(std::chrono::seconds(10)))
     {
-      CNR_ERROR(logger_, "unable to connect to /cnr_scene_manager/add_objects");
+      GC_ERROR(logger_, "unable to connect to /cnr_scene_manager/add_objects");
       spawn_objs_ = false;
     }
 
     if (!move_obj_->wait_for_service(std::chrono::seconds(10)))
     {
-      CNR_ERROR(logger_, "unable to connect to /cnr_scene_manager/move_objects");
+      GC_ERROR(logger_, "unable to connect to /cnr_scene_manager/move_objects");
       spawn_objs_ = false;
     }
 
     if (!remove_obj_->wait_for_service(std::chrono::seconds(10)))
     {
-      CNR_ERROR(logger_, "unable to connect to /cnr_scene_manager/remove_objects");
+      GC_ERROR(logger_, "unable to connect to /cnr_scene_manager/remove_objects");
       spawn_objs_ = false;
     }
   }
@@ -383,7 +386,7 @@ bool ReplannerManagerBase::uploadPathCost(const PathPtr& current_path_updated_co
 
   if (current_path_shared_->getCostFromConf(current_configuration_) == std::numeric_limits<double>::infinity() &&
       (display_timing_warning_ || display_replanning_success_))
-    CNR_INFO(logger_, RESET() << BOLDMAGENTA() << "Obstacle detected!" << RESET());
+    GC_INFO(logger_, RESET() << BOLDMAGENTA() << "Obstacle detected!" << RESET());
 
   return updated;
 }
@@ -476,7 +479,7 @@ void ReplannerManagerBase::replanningThread()
       replanner_mtx_.lock();
       if (not(current_path_->findConnection(configuration_replan_)))
       {
-        CNR_INFO(logger_, RESET() << BOLDYELLOW() << "The configuration for replanning seems to not belong to the path" << RESET());
+        GC_INFO(logger_, RESET() << BOLDYELLOW() << "The configuration for replanning seems to not belong to the path" << RESET());
         trj_mtx_.lock();
         configuration_replan_ = current_configuration_;
         trj_mtx_.unlock();
@@ -513,9 +516,9 @@ void ReplannerManagerBase::replanningThread()
       }
 
       if (replanning_duration >= dt_replan_ / 0.9 && display_timing_warning_)
-        CNR_INFO(logger_, RESET() << BOLDYELLOW() << "Replanning duration: " << replanning_duration << RESET());
+        GC_INFO(logger_, RESET() << BOLDYELLOW() << "Replanning duration: " << replanning_duration << RESET());
       if (display_replanning_success_)
-        CNR_INFO(logger_, RESET() << BOLDWHITE() << "Success: " << success << " in " << replanning_duration << " seconds" << RESET());
+        GC_INFO(logger_, RESET() << BOLDWHITE() << "Success: " << success << " in " << replanning_duration << " seconds" << RESET());
 
       if (path_changed && (not stop_))
       {
@@ -579,14 +582,14 @@ void ReplannerManagerBase::replanningThread()
       duration = toSeconds(toc, tic);
 
       if (display_timing_warning_ && duration > (dt_replan_ / 0.9))
-        CNR_INFO(logger_, RESET() << BOLDYELLOW() << "Replanning thread time expired: duration-> " << duration << " replanning time-> " << replanning_duration
+        GC_INFO(logger_, RESET() << BOLDYELLOW() << "Replanning thread time expired: duration-> " << duration << " replanning time-> " << replanning_duration
                                   << RESET());
     }
 
     lp.sleep();
   }
 
-  CNR_INFO(logger_, RESET() << BOLDCYAN() << "Replanning thread is over" << RESET());
+  GC_INFO(logger_, RESET() << BOLDCYAN() << "Replanning thread is over" << RESET());
 }
 
 void ReplannerManagerBase::collisionCheckThread()
@@ -616,7 +619,7 @@ void ReplannerManagerBase::collisionCheckThread()
 
     if (future.wait_for(std::chrono::seconds(5)) != std::future_status::ready || !future.valid())
     {
-      CNR_ERROR(logger_, "call to srv not ok");
+      GC_ERROR(logger_, "call to srv not ok");
       stop_ = true;
       break;
     }
@@ -665,12 +668,12 @@ void ReplannerManagerBase::collisionCheckThread()
     duration = toSeconds(toc, tic);
 
     if (duration > (1.0 / double(collision_checker_thread_frequency_)) && display_timing_warning_)
-      CNR_INFO(logger_, RESET() << BOLDYELLOW() << "Collision checking thread time expired: total duration-> " << duration << RESET());
+      GC_INFO(logger_, RESET() << BOLDYELLOW() << "Collision checking thread time expired: total duration-> " << duration << RESET());
 
     lp.sleep();
   }
 
-  CNR_INFO(logger_, RESET() << BOLDCYAN() << "Collision check thread is over" << RESET());
+  GC_INFO(logger_, RESET() << BOLDCYAN() << "Collision check thread is over" << RESET());
 }
 
 bool ReplannerManagerBase::replan()
@@ -715,7 +718,7 @@ bool ReplannerManagerBase::run()
   target_pub_->publish(new_joint_state_);
   unscaled_target_pub_->publish(new_joint_state_unscaled_);
 
-  CNR_INFO(logger_, RESET() << BOLDWHITE() << "Launching threads.." << RESET());
+  GC_INFO(logger_, RESET() << BOLDWHITE() << "Launching threads.." << RESET());
 
   display_thread_ =
       std::thread(&ReplannerManagerBase::displayThread, this);  // it must be the first one launched, otherwise the first paths will be not displayed in time
@@ -822,7 +825,7 @@ void ReplannerManagerBase::trajectoryExecutionThread()
     toc = graph_time::now();
     duration = toSeconds(toc, tic);
     if (duration > (1.0 / double(trj_exec_thread_frequency_)) && display_timing_warning_)
-      CNR_INFO(logger_, RESET() << BOLDYELLOW() << "Trj execution thread time expired: duration-> " << duration << RESET());
+      GC_INFO(logger_, RESET() << BOLDYELLOW() << "Trj execution thread time expired: duration-> " << duration << RESET());
 
     lp.sleep();
   }
@@ -835,7 +838,7 @@ void ReplannerManagerBase::trajectoryExecutionThread()
   if (goal_reached_ && (point2project - goal_conf).norm() > goal_tol_)
     throw std::runtime_error("goal toll not respected! goal toll " + std::to_string(goal_tol_) + " dist " + std::to_string((point2project - goal_conf).norm()));
 
-  CNR_INFO(logger_, RESET() << BOLDCYAN() << "Trajectory execution thread is over" << RESET());
+  GC_INFO(logger_, RESET() << BOLDCYAN() << "Trajectory execution thread is over" << RESET());
 }
 
 void ReplannerManagerBase::displayThread()
@@ -930,7 +933,7 @@ void ReplannerManagerBase::displayThread()
   }
 
   disp->clearMarkers();
-  CNR_INFO(logger_, RESET() << BOLDCYAN() << "Display thread is over" << RESET());
+  GC_INFO(logger_, RESET() << BOLDCYAN() << "Display thread is over" << RESET());
 }
 
 void ReplannerManagerBase::spawnObjectsThread()
@@ -1074,7 +1077,7 @@ void ReplannerManagerBase::spawnObjectsThread()
 
       if (future.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
       {
-        CNR_ERROR(logger_, "call to add obj srv not ok");
+        GC_ERROR(logger_, "call to add obj srv not ok");
         stop_ = true;
         break;
       }
@@ -1082,10 +1085,10 @@ void ReplannerManagerBase::spawnObjectsThread()
       auto add_response = future.get();
 
       if (not add_response->success)
-        CNR_ERROR(logger_, "add obj srv error");
+        GC_ERROR(logger_, "add obj srv error");
       else
       {
-        CNR_INFO(logger_, RESET() << BOLDMAGENTA() << "Obstacle spawned!" << RESET());
+        GC_INFO(logger_, RESET() << BOLDMAGENTA() << "Obstacle spawned!" << RESET());
         obs_update = true;
 
         Eigen::Vector3d v;
@@ -1111,7 +1114,7 @@ void ReplannerManagerBase::spawnObjectsThread()
 
       if (future.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
       {
-        CNR_ERROR(logger_, "call to move obj srv not ok");
+        GC_ERROR(logger_, "call to move obj srv not ok");
         stop_ = true;
         break;
       }
@@ -1119,7 +1122,7 @@ void ReplannerManagerBase::spawnObjectsThread()
       auto move_response = future.get();
 
       if (not move_response->success)
-        CNR_ERROR(logger_, "move obj srv error");
+        GC_ERROR(logger_, "move obj srv error");
       else
         obs_update = true;
     }
@@ -1161,16 +1164,16 @@ void ReplannerManagerBase::spawnObjectsThread()
     auto future = remove_obj_->async_send_request(remove_request);
 
     if (future.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
-      CNR_ERROR(logger_, "call to remove obj srv not ok");
+      GC_ERROR(logger_, "call to remove obj srv not ok");
     else
     {
       auto remove_response = future.get();
       if (not remove_response->success)
-        CNR_ERROR(logger_, "remove obj srv error");
+        GC_ERROR(logger_, "remove obj srv error");
     }
   }
 
-  CNR_INFO(logger_, RESET() << BOLDCYAN() << "Spawn objects thread is over" << RESET());
+  GC_INFO(logger_, RESET() << BOLDCYAN() << "Spawn objects thread is over" << RESET());
 }
 
 void ReplannerManagerBase::benchmarkThread()
@@ -1287,7 +1290,7 @@ void ReplannerManagerBase::benchmarkThread()
     if (distance > 0.3)
     {
       // current_configuration = old_current_configuration;
-      CNR_INFO(logger_, RESET() << BOLDRED() << "Skipping path length increment! Distance: " << distance << RESET());
+      GC_INFO(logger_, RESET() << BOLDRED() << "Skipping path length increment! Distance: " << distance << RESET());
     }
     else
       path_length += distance;
@@ -1335,7 +1338,7 @@ void ReplannerManagerBase::benchmarkThread()
     toc = graph_time::now();
     cycle_duration = toSeconds(toc, tic);
     if (cycle_duration > (1 / freq) && display_timing_warning_)
-      CNR_INFO(logger_, RESET() << BOLDYELLOW() << "Benchmark thread time expired: duration-> " << cycle_duration << RESET());
+      GC_INFO(logger_, RESET() << BOLDYELLOW() << "Benchmark thread time expired: duration-> " << cycle_duration << RESET());
 
     lp.sleep();
   }
@@ -1360,28 +1363,28 @@ void ReplannerManagerBase::benchmarkThread()
   bench_mtx_.unlock();
 
   std::string replanner_type;
-  get_param(logger_, param_ns_, "replanner_type", replanner_type, std::string("replanner"));
+  get_param(logger_, params_, "replanner_type", replanner_type, std::string("replanner"));
 
   std::string test_name;
-  get_param(logger_, param_ns_, "test_name", test_name, std::string("test"));
+  get_param(logger_, params_, "test_name", test_name, std::string("test"));
 
   std::string bench_name;
-  get_param(logger_, param_ns_, "bench_name", bench_name, std::string("bench"));
+  get_param(logger_, params_, "bench_name", bench_name, std::string("bench"));
 
   std::string path = "./openmore_replanners_benchmark";
   std::string file_name = path + "/" + bench_name + "/" + replanner_type + "/" + test_name + ".bin";
 
-  boost::filesystem::path dir(path);
-  if (not(boost::filesystem::exists(dir)))
-    boost::filesystem::create_directory(dir);
+  std::filesystem::path dir(path);
+  if (not(std::filesystem::exists(dir)))
+    std::filesystem::create_directory(dir);
 
-  boost::filesystem::path dir2(path + "/" + bench_name);
-  if (not(boost::filesystem::exists(dir2)))
-    boost::filesystem::create_directory(dir2);
+  std::filesystem::path dir2(path + "/" + bench_name);
+  if (not(std::filesystem::exists(dir2)))
+    std::filesystem::create_directory(dir2);
 
-  boost::filesystem::path dir3(path + "/" + bench_name + "/" + replanner_type);
-  if (not(boost::filesystem::exists(dir3)))
-    boost::filesystem::create_directory(dir3);
+  std::filesystem::path dir3(path + "/" + bench_name + "/" + replanner_type);
+  if (not(std::filesystem::exists(dir3)))
+    std::filesystem::create_directory(dir3);
 
   std::ofstream file;
   file.open(file_name, std::ios::out | std::ios::binary);
@@ -1406,7 +1409,7 @@ void ReplannerManagerBase::benchmarkThread()
   file.flush();
   file.close();
 
-  CNR_INFO(logger_, RESET() << BOLDBLUE() << "\nFile " << file_name << " saved!\n* success: " << success << "\n* number_of_objects: " << number_of_objects
+  GC_INFO(logger_, RESET() << BOLDBLUE() << "\nFile " << file_name << " saved!\n* success: " << success << "\n* number_of_objects: " << number_of_objects
                             << "\n* number_of_collisions: " << n_collisions << "\n* path length: " << path_length
                             << "\n* distance start-goal: " << distance_start_goal << "\n* initial path length: " << initial_path_length
                             << "\n* time: " << real_time_ << "\n* replanning time mean: " << mean << "\n* replanning time std dev: " << std_dev
@@ -1415,7 +1418,7 @@ void ReplannerManagerBase::benchmarkThread()
   if (n_collisions == 0 && not success)
     throw std::runtime_error("no collisions but success false!");
 
-  CNR_INFO(logger_, RESET() << BOLDCYAN() << "Benchamrk thread is over" << RESET());
+  GC_INFO(logger_, RESET() << BOLDCYAN() << "Benchamrk thread is over" << RESET());
 }
 
 Eigen::Vector3d ReplannerManagerBase::forwardIk(const Eigen::VectorXd& conf, const std::string& last_link,

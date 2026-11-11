@@ -52,7 +52,7 @@ protected:
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  ReplannerManagerAnytimeDRRT(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver, const std::string& param_ns,
-                              const TraceLoggerPtr& logger);
+  ReplannerManagerAnytimeDRRT(const PathPtr& current_path, const TrajectoryPtr& trajectory_processor, const TreeSolverPtr& solver, const ParamMap& params,
+                              const LoggerPtr& logger);
 };
 }  // namespace openmore
